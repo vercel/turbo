@@ -95,6 +95,7 @@ importers:
       '@types/react-dom': ^18.0.9
       '@vercel/ncc': ^0.36.0
       '@vercel/turbopack-runtime': latest
+      '@vercel/vendor-turbopack-js-deps': 0.0.0
       anser: ^2.1.1
       css.escape: ^1.5.1
       find-up: ^6.3.0
@@ -122,6 +123,7 @@ importers:
       '@types/react': 18.0.26
       '@types/react-dom': 18.0.9
       '@vercel/ncc': 0.36.0
+      '@vercel/vendor-turbopack-js-deps': link:../../../packages/vendor-turbopack-js-deps
       find-up: 6.3.0
 
   crates/next-dev-tests/test-harness:
@@ -173,12 +175,16 @@ importers:
     specifiers:
       '@types/loader-runner': ^2.2.4
       '@types/node': ^18.11.11
+      '@vercel/vendor-turbopack-js-deps': 0.0.0
       loader-runner: ^4.3.0
+      stacktrace-parser: ^0.1.10
     dependencies:
       loader-runner: 4.3.0
+      stacktrace-parser: 0.1.10
     devDependencies:
       '@types/loader-runner': 2.2.4
       '@types/node': 18.11.11
+      '@vercel/vendor-turbopack-js-deps': link:../../../packages/vendor-turbopack-js-deps
 
   docs:
     specifiers:
@@ -528,6 +534,16 @@ importers:
       tsconfig: link:../tsconfig
       tsup: 5.12.9_typescript@4.7.4
       typescript: 4.7.4
+
+  packages/vendor-turbopack-js-deps:
+    specifiers:
+      '@types/node': ^18.13.0
+      '@vercel/ncc': ^0.36.1
+      find-up: ^6.3.0
+    dependencies:
+      '@types/node': 18.13.0
+      '@vercel/ncc': 0.36.1
+      find-up: 6.3.0
 
   packages/webpack-nmt:
     specifiers:
@@ -1115,7 +1131,7 @@ packages:
       '@jest/test-result': 27.5.1
       '@jest/transform': 27.5.1
       '@jest/types': 27.5.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.8.1
@@ -1162,7 +1178,7 @@ packages:
     dependencies:
       '@jest/fake-timers': 29.4.1
       '@jest/types': 29.4.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       jest-mock: 29.4.1
 
   /@jest/expect-utils/29.4.1:
@@ -1402,7 +1418,7 @@ packages:
       '@jest/schemas': 29.4.0
       '@types/istanbul-lib-coverage': 2.0.4
       '@types/istanbul-reports': 3.0.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       '@types/yargs': 17.0.22
       chalk: 4.1.2
 
@@ -2459,7 +2475,7 @@ packages:
     resolution: {integrity: sha512-ZUxbzKl0IfJILTS6t7ip5fQQM/J3TJYubDm3nMbgubNNYS62eXeUpoLUC8/7fJNiFYHTrGPQn7hspDUzIHX3UA==}
     dependencies:
       '@types/minimatch': 5.1.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
     dev: true
 
   /@types/graceful-fs/4.1.5:
@@ -2536,7 +2552,7 @@ packages:
     resolution: {integrity: sha512-Ny/PJkO6nxWAQnaet8q/oWz15lrfwvdvBpuY4treB0CSsBO1CG0fVuNLngR3m3bepQLd+E4c3Y3DlC2okpUvPw==}
     dependencies:
       '@types/fined': 1.1.3
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
     dev: true
 
   /@types/loader-runner/2.2.4:
@@ -2664,7 +2680,7 @@ packages:
   /@types/webpack/5.28.0:
     resolution: {integrity: sha512-8cP0CzcxUiFuA9xGJkfeVpqmWTk9nx6CWwamRGCj95ph1SmlRRk9KlCZ6avhCbZd4L68LvYT6l1kpdEnQXrF8w==}
     dependencies:
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       tapable: 2.2.1
       webpack: 5.75.0
     transitivePeerDependencies:
@@ -2840,6 +2856,11 @@ packages:
     resolution: {integrity: sha512-/ZTUJ/ZkRt694k7KJNimgmHjtQcRuVwsST2Z6XfYveQIuBbHR+EqkTc1jfgPkQmMyk/vtpxo3nVxe8CNuau86A==}
     hasBin: true
     dev: true
+
+  /@vercel/ncc/0.36.1:
+    resolution: {integrity: sha512-S4cL7Taa9yb5qbv+6wLgiKVZ03Qfkc4jGRuiUQMQ8HGBD5pcNRnHeYM33zBvJE4/zJGjJJ8GScB+WmTsn9mORw==}
+    hasBin: true
+    dev: false
 
   /@vercel/og/0.0.20:
     resolution: {integrity: sha512-089P+TfqWz0xBxjOvOhkZIDDtfrLcye94H4IZ+SqxoGPWpNGXaBvRJER/z5SoJxJRcCAL8tPiK5zdjRskM6tLw==}
@@ -6009,7 +6030,6 @@ packages:
     dependencies:
       locate-path: 7.1.1
       path-exists: 5.0.0
-    dev: true
 
   /findup-sync/5.0.0:
     resolution: {integrity: sha512-MzwXju70AuyflbgeOhzvQWAvvQdo1XL0A9bVvlXsYcFEBM87WR4OakL4OfZq+QRmr+duJubio+UtNQCPsVESzQ==}
@@ -7706,7 +7726,7 @@ packages:
       '@jest/test-result': 29.4.1
       '@jest/transform': 29.4.1
       '@jest/types': 29.4.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       chalk: 4.1.2
       cjs-module-lexer: 1.2.2
       collect-v8-coverage: 1.0.1
@@ -7799,7 +7819,7 @@ packages:
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
     dependencies:
       '@jest/types': 27.5.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       chalk: 4.1.2
       ci-info: 3.3.2
       graceful-fs: 4.2.10
@@ -7811,7 +7831,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/types': 29.4.1
-      '@types/node': 18.11.11
+      '@types/node': 18.13.0
       chalk: 4.1.2
       ci-info: 3.3.2
       graceful-fs: 4.2.10
@@ -8201,7 +8221,6 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       p-locate: 6.0.0
-    dev: true
 
   /lodash.get/4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
@@ -9826,7 +9845,6 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       yocto-queue: 1.0.0
-    dev: true
 
   /p-locate/4.1.0:
     resolution: {integrity: sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A==}
@@ -9845,7 +9863,6 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       p-limit: 4.0.0
-    dev: true
 
   /p-map/4.0.0:
     resolution: {integrity: sha512-/bjOqmgETBYB5BoEeGVea8dmvHb2m9GLy1E9W43yeyfP6QQCZGFNa+XRceJEuDB6zqr+gKpIAmlLebMpykw/MQ==}
@@ -9960,7 +9977,6 @@ packages:
   /path-exists/5.0.0:
     resolution: {integrity: sha512-RjhtfwJOxzcFmNOi6ltcbcu4Iu+FL3zEj83dk4kAS+fVpTxXLO1b38RvJgT/0QwvV/L3aY9TAnyv0EOqW4GoMQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-    dev: true
 
   /path-is-absolute/1.0.1:
     resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
@@ -12677,7 +12693,6 @@ packages:
   /yocto-queue/1.0.0:
     resolution: {integrity: sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==}
     engines: {node: '>=12.20'}
-    dev: true
 
   /yoga-layout-prebuilt/1.10.0:
     resolution: {integrity: sha512-YnOmtSbv4MTf7RGJMK0FvZ+KD8OEe/J5BNnR0GHhD8J/XcG/Qvxgszm0Un6FTHWW4uHlTgP0IztiXQnGyIR45g==}
