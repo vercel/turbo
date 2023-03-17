@@ -21,7 +21,13 @@ use serde::{Deserialize, Serialize};
 use tiny_gradient::{GradientStr, RGB};
 use turbo_updater::check_for_updates;
 
-use crate::{cli, get_version, package_manager::Globs, PackageManager, Payload};
+use crate::{
+    cli,
+    files::{package_json, turbo_json, yarn_rc},
+    get_version,
+    package_manager::Globs,
+    PackageManager, Payload,
+};
 
 // all arguments that result in a stdout that much be directly parsable and
 // should not be paired with additional output (from the update notifier for
@@ -174,25 +180,6 @@ pub enum RepoMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PackageJson {
-    version: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct YarnRc {
-    pnp_unplugged_folder: PathBuf,
-}
-
-impl Default for YarnRc {
-    fn default() -> Self {
-        Self {
-            pnp_unplugged_folder: [".yarn", "unplugged"].iter().collect(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TurboState {
     bin_path: Option<PathBuf>,
     version: &'static str,
@@ -313,9 +300,7 @@ impl LocalTurboState {
         let yarn_rc_filename =
             env::var_os("YARN_RC_FILENAME").unwrap_or_else(|| OsString::from(".yarnrc.yml"));
         let yarn_rc_filepath = root_path.join(yarn_rc_filename);
-
-        let yarn_rc_yaml_string = fs::read_to_string(yarn_rc_filepath).unwrap_or_default();
-        let yarn_rc: YarnRc = serde_yaml::from_str(&yarn_rc_yaml_string).unwrap_or_default();
+        let yarn_rc = yarn_rc::read(&yarn_rc_filepath).unwrap_or_default();
 
         root_path.join(yarn_rc.pnp_unplugged_folder)
     }
@@ -384,18 +369,20 @@ impl LocalTurboState {
             let bin_path = root.join(&platform_package_executable_path);
             match fs_canonicalize(&bin_path) {
                 Ok(bin_path) => {
-                    let resolved_package_json_path = root.join(platform_package_json_path);
-                    let platform_package_json_string =
-                        fs::read_to_string(resolved_package_json_path).ok()?;
-                    let platform_package_json: PackageJson =
-                        serde_json::from_str(&platform_package_json_string).ok()?;
+                    // This is done in a loop and Clippy's suggestion is wrong.
+                    #[allow(clippy::needless_borrow)]
+                    let resolved_package_json_path = root.join(&platform_package_json_path);
+                    let platform_package_json =
+                        package_json::read(&resolved_package_json_path).unwrap_or_default();
+
+                    let version = match platform_package_json.version {
+                        Some(version) => version,
+                        None => continue,
+                    };
 
                     debug!("Local turbo path: {}", bin_path.display());
-                    debug!("Local turbo version: {}", platform_package_json.version);
-                    return Some(Self {
-                        bin_path,
-                        version: platform_package_json.version,
-                    });
+                    debug!("Local turbo version: {}", version);
+                    return Some(Self { bin_path, version });
                 }
                 Err(_) => debug!("No local turbo binary found at: {}", bin_path.display()),
             }
@@ -593,11 +580,35 @@ impl RepoState {
                 self.spawn_local_turbo(&canonical_local_turbo, shim_args),
             ))
         } else {
-            try_check_for_updates(&shim_args, get_version());
+            let global_version = get_version();
+            try_check_for_updates(&shim_args, global_version);
+            debug!("Running command as global turbo");
+
+            // Absence of turbo.json is not an error per business logic.
+            if let Ok(turbo_json) = turbo_json::read(&self.root) {
+                match turbo_json.check_version(global_version) {
+                    Ok(version_match) => {
+                        if !version_match {
+                            return Err(anyhow!(
+                                "You specified needing `turbo` version {}, but you're running {}",
+                                turbo_json.turbo_version,
+                                global_version
+                            ));
+                        }
+                    }
+                    Err(err) => {
+                        return Err(anyhow!(
+                            "The version string in turbo.json at `turboVersion` is invalid: {}. {}",
+                            turbo_json.turbo_version,
+                            err.to_string()
+                        ));
+                    }
+                }
+            }
+
             // cli::run checks for this env var, rather than an arg, so that we can support
             // calling old versions without passing unknown flags.
             env::set_var(cli::INVOCATION_DIR_ENV_VAR, &shim_args.invocation_dir);
-            debug!("Running command as global turbo");
             cli::run(Some(self))
         }
     }
