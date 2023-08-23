@@ -8,7 +8,7 @@ use std::{
     fmt,
     fs::{File, Metadata, OpenOptions, Permissions},
     io,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use camino::{Utf8Component, Utf8Components, Utf8Path, Utf8PathBuf};
@@ -264,6 +264,10 @@ impl AbsoluteSystemPath {
         fs::remove_file(&self.0)
     }
 
+    pub fn rename(&self, other: &Self) -> Result<(), io::Error> {
+        fs::rename(self, other)
+    }
+
     pub fn components(&self) -> Utf8Components<'_> {
         self.0.components()
     }
@@ -352,6 +356,20 @@ impl AbsoluteSystemPath {
         fs::set_permissions(&self.0, permissions)?;
 
         Ok(())
+    }
+}
+
+impl PartialEq<&AbsoluteSystemPath> for Path {
+    fn eq(&self, other: &&AbsoluteSystemPath) -> bool {
+        Utf8Path::from_path(self)
+            .map(|path| &other.0 == path)
+            .unwrap_or(false)
+    }
+}
+
+impl PartialEq<&AbsoluteSystemPath> for PathBuf {
+    fn eq(&self, other: &&AbsoluteSystemPath) -> bool {
+        self.as_path().eq(other)
     }
 }
 

@@ -149,6 +149,8 @@ impl GlobWatcher {
     }
 }
 
+type WatchEvent = Result<Result<Event, ConfigError>, TimedOutError>;
+
 impl GlobWatcher {
     /// Convert the watcher into a stream of events, handling config changes and
     /// flushing transparently.
@@ -159,11 +161,7 @@ impl GlobWatcher {
     pub fn into_stream(
         self,
         token: stop_token::StopToken,
-    ) -> impl Stream<Item = Result<Result<Event, ConfigError>, TimedOutError>>
-           + Send
-           + Sync
-           + 'static
-           + Unpin {
+    ) -> impl Stream<Item = WatchEvent> + Send + Sync + 'static + Unpin {
         let Self {
             setup_handle,
             flush_dir,
@@ -354,6 +352,14 @@ impl<T: Watcher> WatchConfig<T> {
                 }
             })
             .map_err(ConfigError::WatchError)
+    }
+
+    pub async fn add_root(&self, root: &AbsoluteSystemPath) -> Result<(), ConfigError> {
+        self.watcher
+            .lock()
+            .expect("watcher lock poisoned")
+            .watch(root.as_std_path(), notify::RecursiveMode::Recursive)
+            .map_err(|e| ConfigError::WatchError(vec![e]))
     }
 
     /// Register a single path to be included by the watcher.
@@ -583,15 +589,22 @@ fn glob_to_symbols(glob: &str) -> impl Iterator<Item = GlobSymbol> {
 mod test {
     use std::{
         path::PathBuf,
-        sync::{Arc, Mutex},
+        sync::{atomic::AtomicUsize, Arc, Mutex},
         time::Duration,
     };
 
+    use futures::{Stream, StreamExt};
+    use notify::{
+        event::{CreateKind, RemoveKind},
+        EventKind,
+    };
+    use stop_token::StopSource;
     use test_case::test_case;
     use tokio::sync::watch;
+    use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
 
-    use super::{GlobSymbol::*, WatchConfig};
-    use crate::ConfigError;
+    use super::{GlobSymbol::*, GlobWatcher, WatchConfig};
+    use crate::{ConfigError, WatchEvent};
 
     #[test_case("foo/**", vec!["foo"])]
     #[test_case("foo/{a,b}", vec!["foo"])]
@@ -644,5 +657,210 @@ mod test {
                 }
             }
         }
+    }
+
+    fn temp_dir() -> (AbsoluteSystemPathBuf, tempfile::TempDir) {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = AbsoluteSystemPathBuf::try_from(tmp.path()).unwrap();
+        (path, tmp)
+    }
+
+    static WATCH_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    async fn expect_filesystem_event(
+        mut stream: impl Stream<Item = WatchEvent> + Unpin,
+        expected_path: &AbsoluteSystemPath,
+        expected_event: EventKind,
+    ) {
+        'outer: loop {
+            let next_stream_entry = stream.next();
+            let event = tokio::time::timeout(Duration::from_millis(100), next_stream_entry)
+                .await
+                .expect("timed out waiting for filesystem event")
+                .expect("missing event from stream")
+                .expect("underlying timeout error")
+                .expect("got config error");
+            println!("event {:?}", event);
+            for path in event.paths {
+                if path == expected_path && event.kind == expected_event {
+                    break 'outer;
+                }
+            }
+        }
+    }
+
+    async fn expect_watching(
+        mut stream: impl Stream<Item = WatchEvent> + Unpin,
+        dirs: &[&AbsoluteSystemPath],
+    ) {
+        for dir in dirs {
+            let count = WATCH_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let filename = dir.join_component(format!("test-{}", count).as_str());
+            filename.create_with_contents("hello").unwrap();
+
+            expect_filesystem_event(&mut stream, &filename, EventKind::Create(CreateKind::File))
+                .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_file_watching() {
+        let (flush_dir, _tmp_flush) = temp_dir();
+        let (watcher, config) = GlobWatcher::new(&flush_dir).unwrap();
+        let (repo_root, _tmp_repo_root) = temp_dir();
+        let repo_root = repo_root.to_realpath().unwrap();
+
+        repo_root.join_component(".git").create_dir_all().unwrap();
+        repo_root
+            .join_components(&["node_modules", "some-dep"])
+            .create_dir_all()
+            .unwrap();
+        let parent_path = repo_root.join_component("parent");
+        let child_path = parent_path.join_component("child");
+        child_path.create_dir_all().unwrap();
+        let sibling_path = parent_path.join_component("sibling");
+        sibling_path.create_dir_all().unwrap();
+
+        let stop = StopSource::new();
+        let token = stop.token();
+        let mut stream = watcher.into_stream(token);
+
+        config.add_root(&repo_root).await.unwrap();
+
+        expect_watching(&mut stream, &[&repo_root, &parent_path, &child_path]).await;
+
+        let foo_path = child_path.join_component("foo");
+        foo_path.create_with_contents("hello").unwrap();
+        expect_filesystem_event(&mut stream, &foo_path, EventKind::Create(CreateKind::File)).await;
+
+        let deep_path = sibling_path.join_components(&["deep", "path"]);
+        deep_path.create_dir_all().unwrap();
+        expect_filesystem_event(
+            &mut stream,
+            &sibling_path.join_component("deep"),
+            EventKind::Create(CreateKind::Folder),
+        )
+        .await;
+        expect_filesystem_event(
+            &mut stream,
+            &deep_path,
+            EventKind::Create(CreateKind::Folder),
+        )
+        .await;
+        expect_watching(
+            &mut stream,
+            &[
+                &repo_root,
+                &parent_path,
+                &child_path,
+                &deep_path,
+                &sibling_path.join_component("deep"),
+            ],
+        )
+        .await;
+
+        // TODO: implement default filtering (.git, node_modules)
+    }
+
+    #[tokio::test]
+    async fn test_file_watching_subfolder_deletion() {
+        // Directory layout:
+        // <repoRoot>/
+        //	 .git/
+        //   node_modules/
+        //     some-dep/
+        //   parent/
+        //     child/
+        let (flush_dir, _tmp_flush) = temp_dir();
+        let (watcher, config) = GlobWatcher::new(&flush_dir).unwrap();
+        let (repo_root, _tmp_repo_root) = temp_dir();
+        let repo_root = repo_root.to_realpath().unwrap();
+
+        repo_root.join_component(".git").create_dir_all().unwrap();
+        repo_root
+            .join_components(&["node_modules", "some-dep"])
+            .create_dir_all()
+            .unwrap();
+        let parent_path = repo_root.join_component("parent");
+        let child_path = parent_path.join_component("child");
+        child_path.create_dir_all().unwrap();
+
+        let stop = StopSource::new();
+        let token = stop.token();
+        let mut stream = watcher.into_stream(token);
+
+        config.add_root(&repo_root).await.unwrap();
+
+        expect_watching(&mut stream, &[&repo_root, &parent_path, &child_path]).await;
+
+        // Delete parent folder during file watching
+        parent_path.remove_dir_all().unwrap();
+        expect_filesystem_event(
+            &mut stream,
+            &parent_path,
+            EventKind::Remove(RemoveKind::Folder),
+        )
+        .await;
+
+        // Ensure we get events when creating file in deleted directory
+        child_path.create_dir_all().unwrap();
+        expect_filesystem_event(
+            &mut stream,
+            &parent_path,
+            EventKind::Create(CreateKind::Folder),
+        )
+        .await;
+        expect_filesystem_event(
+            &mut stream,
+            &child_path,
+            EventKind::Create(CreateKind::Folder),
+        )
+        .await;
+
+        let foo_path = child_path.join_component("foo");
+        foo_path.create_with_contents("hello").unwrap();
+        expect_filesystem_event(&mut stream, &foo_path, EventKind::Create(CreateKind::File)).await;
+        // We cannot guarantee no more events, windows sends multiple delete
+        // events
+    }
+
+    #[tokio::test]
+    async fn test_file_watching_root_deletion() {
+        // Directory layout:
+        // <repoRoot>/
+        //	 .git/
+        //   node_modules/
+        //     some-dep/
+        //   parent/
+        //     child/
+        let (flush_dir, _tmp_flush) = temp_dir();
+        let (watcher, config) = GlobWatcher::new(&flush_dir).unwrap();
+        let (repo_root, _tmp_repo_root) = temp_dir();
+        let repo_root = repo_root.to_realpath().unwrap();
+
+        repo_root.join_component(".git").create_dir_all().unwrap();
+        repo_root
+            .join_components(&["node_modules", "some-dep"])
+            .create_dir_all()
+            .unwrap();
+        let parent_path = repo_root.join_component("parent");
+        let child_path = parent_path.join_component("child");
+        child_path.create_dir_all().unwrap();
+
+        let stop = StopSource::new();
+        let token = stop.token();
+        let mut stream = watcher.into_stream(token);
+
+        config.add_root(&repo_root).await.unwrap();
+
+        expect_watching(&mut stream, &[&repo_root, &parent_path, &child_path]).await;
+
+        repo_root.remove_dir_all().unwrap();
+        expect_filesystem_event(
+            &mut stream,
+            &repo_root,
+            EventKind::Remove(RemoveKind::Folder),
+        )
+        .await;
     }
 }
