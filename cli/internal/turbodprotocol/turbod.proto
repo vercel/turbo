@@ -16,6 +16,8 @@ service Turbod {
   //
   // Since 1.11.0
   rpc DiscoverPackages (DiscoverPackagesRequest) returns (DiscoverPackagesResponse);
+
+  rpc GetChangedPackages (GetChangedPackagesRequest) returns (stream WatchEvent);
 }
 
 message HelloRequest {
@@ -91,7 +93,22 @@ message DiscoverPackagesResponse {
 message PackageFiles {
   string package_json = 1;
   optional string turbo_json = 2;
+}
 
+message GetChangedPackagesRequest {}
+
+message WatchEvent {
+  string id = 1;
+  oneof response {
+    PackageUpdateEvent package_update = 2;
+    DiscoverPackagesResponse rediscovery = 3;
+  }
+}
+
+// Indicates that a package has been updated
+message PackageUpdateEvent {
+  string package = 1;
+  repeated string files = 2;
 }
 
 enum PackageManager {

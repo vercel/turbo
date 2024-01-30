@@ -13,7 +13,7 @@ use tokio::{
     join,
     sync::{
         broadcast::{self, error::RecvError},
-        oneshot, watch,
+        mpsc, oneshot, watch,
     },
 };
 use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
@@ -37,15 +37,31 @@ pub struct PackageWatcher {
     manager_rx: watch::Receiver<PackageManager>,
 }
 
+enum PackageWatchEvent {
+    PackageUpdate {
+        package: AbsoluteSystemPathBuf,
+        files: Vec<AbsoluteSystemPathBuf>,
+    },
+    RediscoverPackages {
+        packages: HashMap<AbsoluteSystemPathBuf, WorkspaceData>,
+        package_manager: PackageManager,
+    },
+    NewPackageManager {
+        package_manager: PackageManager,
+    },
+}
+
 impl PackageWatcher {
     /// Creates a new package watcher whose current package data can be queried.
     pub async fn new<T: PackageDiscovery + Send + 'static>(
         root: AbsoluteSystemPathBuf,
         recv: broadcast::Receiver<Result<Event, NotifyError>>,
+        package_events_tx: mpsc::UnboundedSender<PackageWatchEvent>,
         backup_discovery: T,
     ) -> Result<Self, package_manager::Error> {
         let (exit_tx, exit_rx) = oneshot::channel();
-        let subscriber = Subscriber::new(exit_rx, root, recv, backup_discovery).await?;
+        let subscriber =
+            Subscriber::new(exit_rx, root, recv, backup_discovery, package_events_tx).await?;
         let manager_rx = subscriber.manager_receiver();
         let package_data = subscriber.package_data();
         let handle = tokio::spawn(subscriber.watch());
@@ -90,6 +106,7 @@ struct Subscriber<T: PackageDiscovery> {
     // the package manager
     package_json_path: std::path::PathBuf,
     workspace_config_path: std::path::PathBuf,
+    package_events_tx: mpsc::UnboundedSender<PackageWatchEvent>,
 }
 
 impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
@@ -98,6 +115,7 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
         repo_root: AbsoluteSystemPathBuf,
         recv: broadcast::Receiver<Result<Event, NotifyError>>,
         mut discovery: T,
+        package_events_tx: mpsc::UnboundedSender<PackageWatchEvent>,
     ) -> Result<Self, Error> {
         let initial_discovery = discovery.discover_packages().await?;
 
@@ -121,12 +139,14 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
             manager_tx,
             repo_root,
             backup_discovery: discovery,
+            package_events_tx,
 
             package_json_path,
             workspace_config_path,
         })
     }
 
+    /// Watches packages, sends the update events to `tx`
     async fn watch(mut self) {
         // initialize the contents
         self.rediscover_packages().await;
@@ -218,6 +238,11 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
                     );
                     // if this fails, we are closing anyways so ignore
                     self.manager_tx.send(new_manager.package_manager).ok();
+                    let _ = self
+                        .package_events_tx
+                        .send(PackageWatchEvent::NewPackageManager {
+                            package_manager: new_manager.package_manager.clone(),
+                        });
                     {
                         let mut data = self.package_data.lock().unwrap();
                         *data = new_manager
@@ -264,6 +289,7 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
             // if the glob list has changed, do a recursive walk and replace
             self.rediscover_packages().await;
         } else {
+            let mut changed_packages: HashMap<_, Vec<AbsoluteSystemPathBuf>> = HashMap::new();
             // if a path is not a valid utf8 string, it is not a valid path, so ignore
             for path in file_event
                 .paths
@@ -304,6 +330,11 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
 
                     let mut data = self.package_data.lock().expect("not poisoned");
                     if let Ok(true) = package_exists {
+                        changed_packages
+                            .entry(path_workspace.clone())
+                            .or_default()
+                            .push(path_file.clone());
+
                         data.insert(
                             path_workspace,
                             WorkspaceData {
@@ -316,6 +347,12 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
                     }
                 }
             }
+
+            for (package, files) in changed_packages {
+                self.package_events_tx
+                    .send(PackageWatchEvent::PackageUpdate { package, files })
+                    .unwrap();
+            }
         }
     }
 
@@ -327,6 +364,15 @@ impl<T: PackageDiscovery + Send + 'static> Subscriber<T> {
                 .into_iter()
                 .map(|p| (p.package_json.parent().expect("non-root").to_owned(), p))
                 .collect();
+
+            // If the channel is closed, there's no reason to continue, so panicking is ok
+            self.package_events_tx
+                .send(PackageWatchEvent::RediscoverPackages {
+                    packages: workspace.clone(),
+                    package_manager: self.manager().clone(),
+                })
+                .unwrap();
+
             let mut data = self.package_data.lock().expect("not poisoned");
             *data = workspace;
         } else {
