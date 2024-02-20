@@ -5,6 +5,7 @@
 #![feature(io_error_more)]
 #![feature(round_char_boundary)]
 #![feature(arbitrary_self_types)]
+#![feature(lint_reasons)]
 
 pub mod attach;
 pub mod embed;
@@ -379,7 +380,7 @@ impl DiskFileSystem {
                 loop {
                     match event {
                         Ok(Ok(events)) => {
-                            events.iter().for_each(|DebouncedEvent { event: notify_debouncer_full::notify::Event {kind, paths, ..}, .. }| {
+                            events.iter().for_each(|DebouncedEvent { event: notify_debouncer_full::notify::Event { kind, paths, .. }, .. }| {
                                 let paths: Vec<PathBuf> = paths.iter().filter(|p| {
                                     !ignored_paths.iter().any(|ignored| {
                                         p.starts_with(ignored)
@@ -619,6 +620,7 @@ impl DiskFileSystem {
     }
 }
 
+#[allow(dead_code, reason = "we need to hold onto the locks")]
 struct PathLockGuard<'a>(
     RwLockReadGuard<'a, ()>,
     mutex_map::MutexMapGuard<'a, PathBuf>,
@@ -1923,6 +1925,7 @@ impl File {
         &self.content
     }
 }
+
 mod mime_option_serde {
     use std::{fmt, str::FromStr};
 

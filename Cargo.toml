@@ -7,7 +7,7 @@ members = [
   "crates/turbo-tasks*",
   "crates/turbopack*",
   "crates/turborepo*",
-  "packages/turbo-repository/rust/",
+  "packages/turbo-repository/rust",
   "xtask",
 ]
 
@@ -88,6 +88,10 @@ opt-level = "z"
 [profile.release-turborepo]
 inherits = "release"
 strip = true
+
+[patch.crates-io]
+# temporary patch until https://github.com/servo/pathfinder/pull/548 gets released.
+pathfinder_simd = { git = "https://github.com/servo/pathfinder.git", rev = "e4fcda0d5259d0acf902aee6de7d2501f2bd6629" }
 
 # Declare dependencies used across workspace packages requires single version bump.
 # ref: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#inheriting-a-dependency-from-a-workspace

@@ -250,12 +250,11 @@ impl TaskIdProvider for &dyn TaskIdProvider {
     }
 }
 
+#[non_exhaustive]
 pub struct UpdateInfo {
     pub duration: Duration,
     pub tasks: usize,
     pub reasons: InvalidationReasonSet,
-    #[allow(dead_code)]
-    placeholder_for_future_fields: (),
 }
 
 pub struct TurboTasks<B: Backend + 'static> {
@@ -460,7 +459,7 @@ impl<B: Backend + 'static> TurboTasks<B> {
 
         let this = self.pin();
         let future = async move {
-            #[allow(clippy::blocks_in_if_conditions)]
+            #[allow(clippy::blocks_in_conditions)]
             while CURRENT_TASK_STATE
                 .scope(Default::default(), async {
                     if this.stopped.load(Ordering::Acquire) {
@@ -651,7 +650,6 @@ impl<B: Backend + 'static> TurboTasks<B> {
                         duration,
                         tasks,
                         reasons: take(reason_set),
-                        placeholder_for_future_fields: (),
                     });
                 } else {
                     true
@@ -698,7 +696,6 @@ impl<B: Backend + 'static> TurboTasks<B> {
                 duration,
                 tasks,
                 reasons: take(reason_set),
-                placeholder_for_future_fields: (),
             })
         } else {
             panic!("aggregated_update_info must not called concurrently")

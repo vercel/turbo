@@ -51,6 +51,7 @@ impl BlurPlaceholder {
 #[serde_as]
 #[turbo_tasks::value]
 #[derive(Default)]
+#[non_exhaustive]
 pub struct ImageMetaData {
     pub width: u32,
     pub height: u32,
@@ -58,7 +59,6 @@ pub struct ImageMetaData {
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub mime_type: Option<Mime>,
     pub blur_placeholder: Option<BlurPlaceholder>,
-    placeholder_for_future_extensions: (),
 }
 
 impl ImageMetaData {
@@ -68,7 +68,6 @@ impl ImageMetaData {
             height: 100,
             mime_type,
             blur_placeholder: Some(BlurPlaceholder::fallback()),
-            placeholder_for_future_extensions: (),
         }
     }
 }
@@ -371,7 +370,6 @@ pub async fn get_meta_data(
             height,
             mime_type: Some(mime::IMAGE_SVG),
             blur_placeholder: None,
-            placeholder_for_future_extensions: (),
         }
         .cell());
     }
@@ -409,7 +407,6 @@ pub async fn get_meta_data(
                     None
                 },
                 blur_placeholder,
-                placeholder_for_future_extensions: (),
             }
             .cell())
         }

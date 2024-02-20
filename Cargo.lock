@@ -29,9 +29,9 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.7.6"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
+checksum = "891477e0c6a8957309ee5c45a6368af3ae14bb510732d2684ffa19af310920f9"
 dependencies = [
  "getrandom",
  "once_cell",
@@ -40,9 +40,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.8.6"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
+checksum = "42cd52102d3df161c77a887b608d7a4897d7cc112886a9537b738a887a03aaff"
 dependencies = [
  "cfg-if 1.0.0",
  "getrandom",
@@ -638,18 +638,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-macros"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bb524613be645939e280b7279f7b017f98cf7f5ef084ec374df373530e73277"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "syn 2.0.32",
-]
-
-[[package]]
 name = "axum-server"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1124,7 +1112,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "405bbd46590a441abe5db3e5c8af005aa42e640803fecb51912703e93e4ce8d3"
 dependencies = [
- "ahash 0.8.6",
+ "ahash 0.8.8",
  "anyhow",
  "chrono",
  "either",
@@ -1879,9 +1867,9 @@ dependencies = [
 
 [[package]]
 name = "corosensei"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9847f90f32a50b0dcbd68bc23ff242798b13080b97b0569f6ed96a45ce4cf2cd"
+checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
 dependencies = [
  "autocfg 1.1.0",
  "cfg-if 1.0.0",
@@ -3360,13 +3348,10 @@ dependencies = [
 name = "globwatch"
 version = "0.1.0"
 dependencies = [
- "camino",
  "futures 0.3.28",
  "itertools 0.10.5",
  "merge-streams",
  "notify 5.1.0",
- "notify-debouncer-mini",
- "pin-project",
  "stop-token",
  "test-case",
  "thiserror",
@@ -3377,7 +3362,6 @@ dependencies = [
  "tracing-test",
  "turbopath",
  "unic-segment",
- "walkdir",
 ]
 
 [[package]]
@@ -3452,7 +3436,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
- "ahash 0.7.6",
+ "ahash 0.7.8",
 ]
 
 [[package]]
@@ -3461,7 +3445,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 dependencies = [
- "ahash 0.8.6",
+ "ahash 0.8.8",
 ]
 
 [[package]]
@@ -4181,12 +4165,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json_comments"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41ee439ee368ba4a77ac70d04f14015415af8600d6c894dc1f11bd79758c57d5"
-
-[[package]]
 name = "jsonc-parser"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4483,7 +4461,7 @@ version = "1.0.0-alpha.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d6ad516c08b24c246b339159dc2ee2144c012e8ebdf4db4bddefb8734b2b69"
 dependencies = [
- "ahash 0.7.6",
+ "ahash 0.7.8",
  "bitflags 2.4.0",
  "const-str",
  "cssparser",
@@ -5267,15 +5245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "notify-debouncer-mini"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e23e9fa24f094b143c1eb61f90ac6457de87be6987bc70746e0179f7dbc9007b"
-dependencies = [
- "notify 5.1.0",
-]
-
-[[package]]
 name = "ntapi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5684,8 +5653,7 @@ dependencies = [
 [[package]]
 name = "pathfinder_simd"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0444332826c70dc47be74a7c6a5fc44e23a7905ad6858d4162b658320455ef93"
+source = "git+https://github.com/servo/pathfinder.git?rev=e4fcda0d5259d0acf902aee6de7d2501f2bd6629#e4fcda0d5259d0acf902aee6de7d2501f2bd6629"
 dependencies = [
  "rustc_version 0.4.0",
 ]
@@ -6132,7 +6100,7 @@ version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d99dc6ba4753f07bfbc4dbf3137618d31af2611fcaced7237647075ca687eaa"
 dependencies = [
- "ahash 0.8.6",
+ "ahash 0.8.8",
  "anyhow",
  "browserslist-rs",
  "dashmap",
@@ -6319,15 +6287,6 @@ dependencies = [
  "bitflags 1.3.2",
  "memchr",
  "unicase 2.6.0",
-]
-
-[[package]]
-name = "qstring"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d464fae65fff2680baf48019211ce37aaec0c78e9264c84a3e484717f965104e"
-dependencies = [
- "percent-encoding 2.3.0",
 ]
 
 [[package]]
@@ -6989,16 +6948,6 @@ checksum = "d31b7153270ebf48bf91c65ae5b0c00e749c4cfad505f66530ac74950249582f"
 dependencies = [
  "rustc_version 0.2.3",
  "semver 0.9.0",
-]
-
-[[package]]
-name = "rustc_version_runtime"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dd18cd2bae1820af0b6ad5e54f4a51d0f3fcc53b05f845675074efcc7af071d"
-dependencies = [
- "rustc_version 0.4.0",
- "semver 1.0.18",
 ]
 
 [[package]]
@@ -8187,7 +8136,7 @@ version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "630c761c74ac8021490b78578cc2223aa4a568241e26505c27bf0e4fd4ad8ec2"
 dependencies = [
- "ahash 0.8.6",
+ "ahash 0.8.8",
  "anyhow",
  "dashmap",
  "once_cell",
@@ -8201,7 +8150,7 @@ version = "0.33.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "095c158fe55b36faeebb4274692643a6d7cdc5b7902e1d5968ddbe52b7de1d1c"
 dependencies = [
- "ahash 0.8.6",
+ "ahash 0.8.8",
  "anyhow",
  "ast_node",
  "atty",
@@ -10189,20 +10138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tonic-reflection"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67494bad4dda4c9bffae901dfe14e2b2c0f760adb4706dc10beeb81799f7f7b2"
-dependencies = [
- "bytes 1.5.0",
- "prost",
- "prost-types",
- "tokio",
- "tokio-stream",
- "tonic",
-]
-
-[[package]]
 name = "tower"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10273,7 +10208,6 @@ name = "tower-uds"
 version = "0.1.0"
 dependencies = [
  "async-io",
- "http",
  "tokio",
  "tokio-util",
  "tower",
@@ -10465,20 +10399,10 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "build-target",
- "clap 4.4.2",
- "clap_complete",
- "command-group",
- "dunce",
  "human-panic",
  "itertools 0.10.5",
  "miette 5.10.0",
  "pretty_assertions",
- "serde",
- "serde_json",
- "serde_yaml 0.9.27",
- "tiny-gradient",
- "tokio-util",
- "tracing",
  "turborepo-lib",
  "winapi 0.3.9",
 ]
@@ -10506,7 +10430,6 @@ dependencies = [
  "serde_json",
  "serde_regex",
  "serde_test",
- "stable_deref_trait",
  "thiserror",
  "tokio",
  "tracing",
@@ -10536,7 +10459,6 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_test",
- "tokio",
  "turbo-tasks",
  "turbo-tasks-build",
 ]
@@ -10560,7 +10482,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "httpmock",
- "indexmap 1.9.3",
  "lazy_static",
  "reqwest",
  "serde",
@@ -10625,7 +10546,6 @@ name = "turbo-tasks-macros"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "convert_case 0.6.0",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -10743,9 +10663,7 @@ dependencies = [
  "turbopack-core",
  "turbopack-css",
  "turbopack-ecmascript",
- "turbopack-ecmascript-plugins",
  "turbopack-env",
- "turbopack-image",
  "turbopack-json",
  "turbopack-mdx",
  "turbopack-node",
@@ -10759,12 +10677,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chromiumoxide",
- "clap 4.4.2",
- "console-subscriber",
  "criterion",
- "dunce",
  "futures 0.3.28",
- "mime 0.3.17",
  "nix 0.26.2",
  "once_cell",
  "owo-colors",
@@ -10772,7 +10686,6 @@ dependencies = [
  "portpicker",
  "rand 0.8.5",
  "regex",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -10781,7 +10694,6 @@ dependencies = [
  "turbo-tasks-testing",
  "turbopack-create-test-app",
  "url 2.4.1",
- "webbrowser",
 ]
 
 [[package]]
@@ -10846,9 +10758,6 @@ dependencies = [
  "indexmap 1.9.3",
  "indoc",
  "serde",
- "serde_json",
- "serde_qs",
- "sourcemap",
  "swc_core",
  "tracing",
  "turbo-tasks",
@@ -10856,7 +10765,6 @@ dependencies = [
  "turbo-tasks-fs",
  "turbo-tasks-hash",
  "turbopack-core",
- "turbopack-css",
  "turbopack-ecmascript",
  "turbopack-ecmascript-runtime",
  "urlencoding",
@@ -10873,13 +10781,10 @@ dependencies = [
  "dunce",
  "futures 0.3.28",
  "mime 0.3.17",
- "once_cell",
  "owo-colors",
  "regex",
  "serde",
- "serde_json",
  "tokio",
- "tracing",
  "tracing-signpost",
  "tracing-subscriber",
  "turbo-tasks",
@@ -10911,7 +10816,6 @@ dependencies = [
  "anyhow",
  "clap 4.4.2",
  "crossterm 0.26.1",
- "once_cell",
  "owo-colors",
  "serde",
  "turbo-tasks",
@@ -10925,15 +10829,9 @@ dependencies = [
 name = "turbopack-convert-trace"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "clap 4.4.2",
- "futures 0.3.28",
  "indexmap 1.9.3",
  "intervaltree",
- "itertools 0.10.5",
- "owo-colors",
  "postcard",
- "serde",
  "serde_json",
  "turbopack-trace-utils",
 ]
@@ -10952,13 +10850,11 @@ dependencies = [
  "lazy_static",
  "once_cell",
  "patricia_tree",
- "qstring",
  "ref-cast",
  "regex",
  "rstest",
  "serde",
  "serde_json",
- "serde_qs",
  "sourcemap",
  "swc_core",
  "tokio",
@@ -10989,7 +10885,6 @@ name = "turbopack-css"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "indexmap 1.9.3",
  "indoc",
  "lightningcss",
@@ -11021,7 +10916,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
- "swc_core",
  "tracing",
  "turbo-tasks",
  "turbo-tasks-build",
@@ -11029,7 +10923,6 @@ dependencies = [
  "turbo-tasks-hash",
  "turbopack",
  "turbopack-core",
- "turbopack-css",
  "turbopack-ecmascript",
  "turbopack-ecmascript-runtime",
  "urlencoding",
@@ -11048,7 +10941,6 @@ dependencies = [
  "indexmap 1.9.3",
  "mime 0.3.17",
  "mime_guess",
- "once_cell",
  "parking_lot 0.12.1",
  "pin-project-lite",
  "serde",
@@ -11079,7 +10971,6 @@ dependencies = [
  "async-trait",
  "criterion",
  "either",
- "futures 0.3.28",
  "indexmap 1.9.3",
  "indoc",
  "lazy_static",
@@ -11088,13 +10979,11 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "petgraph",
- "pin-project-lite",
  "regex",
  "rstest",
  "rustc-hash",
  "serde",
  "serde_json",
- "serde_qs",
  "sourcemap",
  "swc_core",
  "tokio",
@@ -11129,7 +11018,6 @@ dependencies = [
  "indexmap 1.9.3",
  "lightningcss",
  "modularize_imports",
- "parcel_selectors",
  "serde",
  "serde_json",
  "styled_components",
@@ -11151,7 +11039,6 @@ dependencies = [
  "anyhow",
  "indoc",
  "serde",
- "swc_core",
  "turbo-tasks",
  "turbo-tasks-build",
  "turbo-tasks-fs",
@@ -11182,7 +11069,6 @@ dependencies = [
  "anyhow",
  "base64 0.21.4",
  "image",
- "indexmap 1.9.3",
  "mime 0.3.17",
  "once_cell",
  "regex",
@@ -11228,7 +11114,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-stream",
- "bytes 1.5.0",
  "const_format",
  "futures 0.3.28",
  "futures-retry",
@@ -11333,13 +11218,9 @@ name = "turbopack-trace-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.4.2",
  "either",
- "futures 0.3.28",
  "indexmap 1.9.3",
- "intervaltree",
  "itertools 0.10.5",
- "owo-colors",
  "postcard",
  "serde",
  "serde_json",
@@ -11373,7 +11254,6 @@ dependencies = [
  "turbo-tasks",
  "turbo-tasks-build",
  "turbo-tasks-fs",
- "turbo-tasks-hash",
  "turbopack-core",
  "turbopack-ecmascript",
  "wasmparser 0.110.0",
@@ -11424,7 +11304,7 @@ dependencies = [
  "port_scanner",
  "regex",
  "reqwest",
- "rustc_version_runtime 0.2.1",
+ "rustc_version_runtime",
  "serde",
  "serde_json",
  "test-case",
@@ -11453,7 +11333,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -11472,14 +11351,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.21.4",
- "bytes 1.5.0",
  "camino",
- "chrono",
- "dunce",
  "futures 0.3.28",
- "hex",
  "hmac",
- "lazy_static",
  "libc",
  "os_str_bytes",
  "path-clean 1.0.1",
@@ -11498,7 +11372,6 @@ dependencies = [
  "turbopath",
  "turborepo-analytics",
  "turborepo-api-client",
- "turborepo-ui",
  "turborepo-vercel-api-mock",
  "zstd",
 ]
@@ -11524,7 +11397,6 @@ name = "turborepo-env"
 version = "0.1.0"
 dependencies = [
  "hex",
- "lazy_static",
  "regex",
  "serde",
  "sha2",
@@ -11547,9 +11419,7 @@ dependencies = [
 name = "turborepo-filewatch"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bitflags 1.3.2",
- "dashmap",
  "fsevent-sys",
  "futures 0.3.28",
  "itertools 0.10.5",
@@ -11600,9 +11470,6 @@ dependencies = [
  "async-io",
  "async-stream",
  "atty",
- "axum",
- "axum-server",
- "biome_console",
  "biome_deserialize",
  "biome_diagnostics",
  "biome_json_parser",
@@ -11628,19 +11495,13 @@ dependencies = [
  "globwatch",
  "go-parse-duration",
  "hex",
- "hostname",
  "humantime",
- "indicatif",
- "is-terminal",
  "itertools 0.10.5",
- "json_comments",
  "jsonc-parser 0.21.0",
- "lazy-regex",
  "lazy_static",
  "libc",
  "miette 5.10.0",
  "nix 0.26.2",
- "node-semver",
  "notify 5.1.0",
  "num_cpus",
  "owo-colors",
@@ -11656,7 +11517,6 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest",
- "rustc_version_runtime 0.2.1",
  "semver 1.0.18",
  "serde",
  "serde_json",
@@ -11678,7 +11538,6 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-build",
- "tonic-reflection",
  "tower",
  "tracing",
  "tracing-appender",
@@ -11707,7 +11566,6 @@ dependencies = [
  "turborepo-vercel-api-mock",
  "twox-hash",
  "uds_windows",
- "url 2.4.1",
  "wax",
  "webbrowser",
  "which",
@@ -11739,19 +11597,13 @@ name = "turborepo-lsp"
 version = "0.1.0"
 dependencies = [
  "crop",
- "futures 0.3.28",
  "itertools 0.10.5",
  "jsonc-parser 0.23.0",
  "pidlock",
  "serde_json",
  "tokio",
  "tokio-retry",
- "tokio-util",
- "tower",
  "tower-lsp",
- "tower-uds",
- "tracing",
- "tracing-subscriber",
  "turbopath",
  "turborepo-lib",
  "turborepo-repository",
@@ -11829,12 +11681,10 @@ dependencies = [
  "async-trait",
  "chrono",
  "config",
- "dirs-next",
  "futures 0.3.28",
  "hex",
  "once_cell",
  "reqwest",
- "rustc_version_runtime 0.3.0",
  "serde",
  "serde_json",
  "sha2",
@@ -11865,7 +11715,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "turbopath",
- "turborepo-ci",
 ]
 
 [[package]]
@@ -11886,7 +11735,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "axum-macros",
  "axum-server",
  "futures-util",
  "port_scanner",
@@ -11901,7 +11749,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "rand 0.8.5",
  "static_assertions",
 ]
@@ -13445,18 +13293,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.7.21"
+version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "686b7e407015242119c33dab17b8f61ba6843534de936d94368856528eae4dcc"
+checksum = "74d4d3961e53fa4c9a25a8637fc2bfaf2595b3d3ae34875568a5cf64787716be"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.21"
+version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "020f3dfe25dfc38dfea49ce62d5d45ecdd7f0d8a724fa63eb36b6eba4ec76806"
+checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
