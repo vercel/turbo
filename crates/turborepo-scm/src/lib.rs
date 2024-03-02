@@ -14,6 +14,7 @@ use std::{
 };
 
 use bstr::io::BufReadExt;
+pub use hash_object::hash_file;
 use thiserror::Error;
 use tracing::debug;
 use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf, PathError, RelativeUnixPathBuf};
@@ -143,7 +144,7 @@ pub(crate) fn wait_for_success<R: Read, T>(
     Err(Error::Git(err_text, Backtrace::capture()))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Git {
     root: AbsoluteSystemPathBuf,
     bin: AbsoluteSystemPathBuf,
@@ -202,7 +203,7 @@ fn find_git_root(turbo_root: &AbsoluteSystemPath) -> Result<AbsoluteSystemPathBu
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SCM {
     Git(Git),
     Manual,

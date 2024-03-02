@@ -13,6 +13,7 @@ use std::{
 };
 
 use futures::Future;
+use itertools::Itertools;
 use prost::DecodeError;
 use semver::Version;
 use thiserror::Error;
@@ -36,9 +37,16 @@ use turborepo_repository::discovery::{
 };
 
 use super::{bump_timeout::BumpTimeout, endpoint::SocketOpenError, proto};
-use crate::daemon::{
-    bump_timeout_layer::BumpTimeoutLayer, default_timeout_layer::DefaultTimeoutLayer,
-    endpoint::listen_socket, Paths,
+use crate::{
+    daemon::{
+        bump_timeout_layer::BumpTimeoutLayer, default_timeout_layer::DefaultTimeoutLayer,
+        endpoint::listen_socket, Paths,
+    },
+    engine::TaskNode,
+    run::{
+        package_hashes::{PackageHashWatcher, PackageHasher, WatchingPackageHasher},
+        task_id::TaskId,
+    },
 };
 
 #[derive(Debug)]
@@ -60,6 +68,7 @@ pub struct FileWatching {
     watcher: Arc<FileSystemWatcher>,
     pub glob_watcher: Arc<GlobWatcher>,
     pub package_watcher: Arc<PackageWatcher>,
+    pub package_hash_watcher: Arc<PackageHashWatcher>,
 }
 
 #[derive(Debug, Error)]
@@ -99,27 +108,38 @@ impl FileWatching {
         backup_discovery: PD,
     ) -> Result<FileWatching, WatchError> {
         let watcher = Arc::new(FileSystemWatcher::new_with_default_cookie_dir(&repo_root)?);
-        let recv = watcher.watch();
+        let file_events_lazy = watcher.watch();
 
-        let cookie_watcher = CookieWriter::new(
+        let cookie_writer = CookieWriter::new(
             watcher.cookie_dir(),
             Duration::from_millis(100),
-            recv.clone(),
+            file_events_lazy.clone(),
         );
         let glob_watcher = Arc::new(GlobWatcher::new(
             repo_root.clone(),
-            cookie_watcher,
-            recv.clone(),
+            cookie_writer.clone(),
+            file_events_lazy.clone(),
         ));
         let package_watcher = Arc::new(
-            PackageWatcher::new(repo_root.clone(), recv.clone(), backup_discovery)
-                .map_err(|e| WatchError::Setup(format!("{:?}", e)))?,
+            PackageWatcher::new(
+                repo_root.clone(),
+                file_events_lazy.clone(),
+                backup_discovery,
+            )
+            .map_err(|e| WatchError::Setup(format!("{:?}", e)))?,
         );
+
+        let package_hash_watcher = Arc::new(PackageHashWatcher::new(
+            repo_root,
+            file_events_lazy,
+            package_watcher.clone(),
+        ));
 
         Ok(FileWatching {
             watcher,
             glob_watcher,
             package_watcher,
+            package_hash_watcher,
         })
     }
 }
@@ -277,6 +297,7 @@ struct TurboGrpcServiceInner<PD> {
     start_time: Instant,
     log_file: AbsoluteSystemPathBuf,
     package_discovery: PD,
+    package_hasher: WatchingPackageHasher<PD>,
 }
 
 // we have a grpc service that uses watching package discovery, and where the
@@ -300,6 +321,12 @@ impl TurboGrpcServiceInner<Arc<WatchingPackageDiscovery>> {
             file_watching.package_watcher.clone(),
         ));
 
+        let package_hasher = WatchingPackageHasher::new(
+            package_discovery.clone(),
+            Duration::from_secs(5),
+            file_watching.clone(),
+        );
+
         // exit_root_watch delivers a signal to the root watch loop to exit.
         // In the event that the server shuts down via some other mechanism, this
         // cleans up root watching task.
@@ -314,6 +341,7 @@ impl TurboGrpcServiceInner<Arc<WatchingPackageDiscovery>> {
         (
             TurboGrpcServiceInner {
                 package_discovery,
+                package_hasher,
                 shutdown: trigger_shutdown,
                 file_watching,
                 times_saved: Arc::new(Mutex::new(HashMap::new())),
@@ -396,7 +424,7 @@ async fn watch_root(
                 let Ok(event) = event else {
                     break;
                 };
-                tracing::debug!("root watcher received event: {:?}", event);
+                tracing::trace!("root watcher received event: {:?}", event);
                 let should_trigger_shutdown = match event {
                     // filewatching can throw some weird events, so check that the root is actually gone
                     // before triggering a shutdown
@@ -565,6 +593,67 @@ impl<PD: PackageDiscovery + Send + Sync + 'static> proto::turbod_server::Turbod
                     tonic::Status::internal(format!("{}", e))
                 }
             })
+    }
+
+    async fn discover_package_hashes(
+        &self,
+        request: tonic::Request<proto::DiscoverPackageHashesRequest>,
+    ) -> Result<tonic::Response<proto::DiscoverPackageHashesResponse>, tonic::Status> {
+        let inner = request.into_inner();
+        let hashes = self
+            .package_hasher
+            .calculate_hashes(
+                Default::default(),
+                inner
+                    .tasks
+                    .into_iter()
+                    .map(|t| match t.inner {
+                        Some(proto::task_node::Inner::Root(_)) => TaskNode::Root,
+                        Some(proto::task_node::Inner::TaskId(proto::TaskId { package, task })) => {
+                            TaskNode::Task(TaskId::from_owned(package, task))
+                        }
+                        None => unreachable!(),
+                    })
+                    .collect(),
+            )
+            .await
+            .map_err(|_| tonic::Status::unavailable("package hasher unavailable"))?;
+
+        Ok(tonic::Response::new(proto::DiscoverPackageHashesResponse {
+            package_hashes: hashes
+                .hashes
+                .into_iter()
+                .map(|(task, hash)| {
+                    (
+                        hash,
+                        hashes
+                            .expanded_hashes
+                            .get(&task)
+                            .map(|h| h.0.keys().collect::<Vec<_>>())
+                            .unwrap_or_default(),
+                        task.into_parts(),
+                    )
+                })
+                .map(|(hash, files, (package, task))| proto::PackageTaskHash {
+                    task_id: Some(proto::TaskId {
+                        package: package.to_string(),
+                        task: task.to_string(),
+                    }),
+                    hash,
+                    files: files.into_iter().map(|p| p.to_string()).collect(),
+                })
+                .collect(),
+            file_hashes: hashes
+                .expanded_hashes
+                .into_iter()
+                .flat_map(|(_, v)| v.0)
+                .unique()
+                .map(|(path, hash)| proto::FileHash {
+                    relative_path: path.to_string(),
+                    hash,
+                })
+                .collect(),
+        }))
     }
 }
 

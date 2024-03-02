@@ -5,6 +5,7 @@ mod error;
 pub(crate) mod global_hash;
 mod graph_visualizer;
 pub(crate) mod package_discovery;
+pub(crate) mod package_hashes;
 mod scope;
 pub(crate) mod summary;
 pub mod task_access;
@@ -14,12 +15,11 @@ use std::{
     collections::HashSet,
     io::{ErrorKind, IsTerminal, Write},
     sync::Arc,
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 pub use cache::{ConfigCache, RunCache, TaskCache};
 use chrono::{DateTime, Local};
-use rayon::iter::ParallelBridge;
 use tracing::debug;
 use turbopath::{AbsoluteSystemPathBuf, AnchoredSystemPath};
 use turborepo_analytics::{start_analytics, AnalyticsHandle, AnalyticsSender};
@@ -58,11 +58,16 @@ use crate::{
     engine::{Engine, EngineBuilder},
     opts::Opts,
     process::ProcessManager,
-    run::{global_hash::get_global_hash_inputs, summary::RunTracker, task_access::TaskAccess},
+    run::{
+        global_hash::get_global_hash_inputs,
+        package_hashes::{DaemonPackageHasher, FallbackPackageHasher, PackageHasher},
+        summary::RunTracker,
+        task_access::TaskAccess,
+    },
     shim::TurboState,
     signal::{SignalHandler, SignalSubscriber},
     task_graph::Visitor,
-    task_hash::{get_external_deps_hash, PackageInputsHashes},
+    task_hash::get_external_deps_hash,
     turbo_json::TurboJson,
 };
 
@@ -418,6 +423,38 @@ impl Run {
 
         debug!("global hash: {}", global_hash);
 
+        // if we are forcing the daemon, we don't want to fallback to local discovery
+        let (fallback, duration) = if let Some(true) = self.opts.run_opts.daemon {
+            (None, Duration::MAX)
+        } else {
+            (
+                Some(package_hashes::LocalPackageHashes::new(
+                    scm.clone(),
+                    pkg_dep_graph
+                        .packages()
+                        .map(|(name, info)| (name.to_owned(), info.to_owned()))
+                        .collect(),
+                    engine
+                        .task_definitions()
+                        .iter()
+                        .map(|(k, v)| (k.to_owned(), v.to_owned().into()))
+                        .collect(),
+                    self.repo_root.clone(),
+                )),
+                Duration::from_millis(10),
+            )
+        };
+
+        let package_hasher = FallbackPackageHasher::new(
+            daemon.clone().map(DaemonPackageHasher::new),
+            fallback,
+            duration,
+        );
+
+        let package_inputs_hashes = package_hasher
+            .calculate_hashes(run_telemetry.clone(), engine.tasks().cloned().collect())
+            .await?;
+
         let color_selector = ColorSelector::default();
 
         let runcache = Arc::new(RunCache::new(
@@ -445,16 +482,6 @@ impl Run {
         {
             global_env_mode = EnvMode::Strict;
         }
-
-        let workspaces = pkg_dep_graph.packages().collect();
-        let package_inputs_hashes = PackageInputsHashes::calculate_file_hashes(
-            &scm,
-            engine.tasks().par_bridge(),
-            workspaces,
-            engine.task_definitions(),
-            &self.repo_root,
-            &run_telemetry,
-        )?;
 
         if self.opts.run_opts.parallel {
             pkg_dep_graph.remove_package_dependencies();

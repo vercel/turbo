@@ -7,7 +7,9 @@ use rayon::prelude::*;
 use serde::Serialize;
 use thiserror::Error;
 use tracing::{debug, Span};
-use turbopath::{AbsoluteSystemPath, AnchoredSystemPath, AnchoredSystemPathBuf};
+use turbopath::{
+    AbsoluteSystemPath, AnchoredSystemPath, AnchoredSystemPathBuf, RelativeUnixPathBuf,
+};
 use turborepo_cache::CacheHitMetadata;
 use turborepo_env::{BySource, DetailedMap, EnvironmentVariableMap, ResolvedEnvMode};
 use turborepo_repository::package_graph::{PackageInfo, PackageName};
@@ -61,8 +63,25 @@ impl TaskHashable<'_> {
 
 #[derive(Debug, Default)]
 pub struct PackageInputsHashes {
-    hashes: HashMap<TaskId<'static>, String>,
-    expanded_hashes: HashMap<TaskId<'static>, FileHashes>,
+    pub hashes: HashMap<TaskId<'static>, String>,
+    pub expanded_hashes: HashMap<TaskId<'static>, FileHashes>,
+}
+
+/// The set of data required from the TaskDefinition to calculate the hash of a
+/// task's inputs. This is guaranteed to be free of runtime config.
+#[derive(Debug, Serialize, Clone)]
+pub struct FileHashInputs {
+    inputs: Vec<String>,
+    dot_env: Option<Vec<turbopath::RelativeUnixPathBuf>>,
+}
+
+impl From<TaskDefinition> for FileHashInputs {
+    fn from(task_definition: TaskDefinition) -> Self {
+        Self {
+            inputs: task_definition.inputs,
+            dot_env: task_definition.dot_env,
+        }
+    }
 }
 
 impl PackageInputsHashes {
@@ -70,8 +89,8 @@ impl PackageInputsHashes {
     pub fn calculate_file_hashes<'a>(
         scm: &SCM,
         all_tasks: impl ParallelIterator<Item = &'a TaskNode>,
-        workspaces: HashMap<&PackageName, &PackageInfo>,
-        task_definitions: &HashMap<TaskId<'static>, TaskDefinition>,
+        workspaces: &HashMap<PackageName, PackageInfo>,
+        task_definitions: &HashMap<TaskId<'static>, FileHashInputs>,
         repo_root: &AbsoluteSystemPath,
         telemetry: &GenericEventBuilder,
     ) -> Result<PackageInputsHashes, Error> {
@@ -141,8 +160,7 @@ impl PackageInputsHashes {
                     }
                 }
 
-                let file_hashes = FileHashes(hash_object);
-                let hash = file_hashes.clone().hash();
+                let (hash, file_hashes) = PackageInputsHashes::calculate_file_hash(hash_object);
 
                 Some(Ok((
                     (task_id.clone(), hash),
@@ -155,6 +173,19 @@ impl PackageInputsHashes {
             hashes,
             expanded_hashes,
         })
+    }
+
+    /// Calculate the hashes of the inputs for a single task.
+    ///
+    /// This method requires that you know the hashes for all the inputs ahead
+    /// of time. If you need to calculate the hashes for all the inputs, use
+    /// `calculate_file_hashes`.
+    pub fn calculate_file_hash(
+        hashes: HashMap<RelativeUnixPathBuf, String>,
+    ) -> (String, FileHashes) {
+        let file_hashes = FileHashes(hashes);
+        let hash = file_hashes.clone().hash();
+        (hash, file_hashes)
     }
 }
 
