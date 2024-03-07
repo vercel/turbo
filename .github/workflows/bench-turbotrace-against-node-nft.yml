@@ -24,15 +24,13 @@ jobs:
       BENCH_ARGS: --release -p turbopack --features bench_against_node_nft bench_against_node_nft
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-node
         with:
           package-install: false
 
       - uses: ./.github/actions/setup-rust
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install hoisted npm dependencies
         working-directory: crates/turbopack/tests/node-file-trace

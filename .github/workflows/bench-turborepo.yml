@@ -22,12 +22,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - uses: ./.github/actions/setup-turborepo-environment
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build
         run: cd cli && make turbo-prod
@@ -60,7 +58,7 @@ jobs:
             runner: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set filename for profile
         id: filename
         shell: bash
@@ -81,7 +79,6 @@ jobs:
       - uses: ./.github/actions/setup-turborepo-environment
         with:
           windows: ${{ matrix.os.name == 'windows' }}
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build Turborepo from source
         run: cd cli && make turbo-prod
@@ -92,9 +89,9 @@ jobs:
         run: pnpm -F @turbo/benchmark ttft "${{ steps.filename.outputs.filename }}"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: profiles # This name will be the folder each file gets downloaded to
+          name: profiles-${{ matrix.os.name }} # This name will be the folder each file gets downloaded to
           if-no-files-found: error
           # cwd is root of the repository, so we need the benchmark/ prefixed path
           path: |
@@ -111,15 +108,16 @@ jobs:
       TINYBIRD_TOKEN: ${{secrets.TINYBIRD_TOKEN}}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
       - name: Download profiles
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: profiles
+          pattern: profiles-*
+          merge-multiple: true
           path: packages/turbo-benchmark/profiles/
 
       - name: Display TTFT Data
@@ -145,15 +143,16 @@ jobs:
     needs: [send-to-tinybird]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
       - name: Download profiles
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: profiles
+          pattern: profiles-*
+          merge-multiple: true
           path: packages/turbo-benchmark/profiles/
 
       - name: Display TTFT Data
@@ -179,7 +178,7 @@ jobs:
         run: cat packages/turbo-benchmark/slack-payload.json | jq
 
       - name: Send payload to slack
-        uses: slackapi/slack-github-action@v1.23.0
+        uses: slackapi/slack-github-action@v1.25.0
         with:
           payload-file-path: "packages/turbo-benchmark/slack-payload.json"
         env:

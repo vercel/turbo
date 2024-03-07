@@ -6,8 +6,9 @@ inputs:
     required: false
     default: "false"
   github-token:
-    description: "GitHub token. You can pass secrets.GITHUB_TOKEN"
-    required: true
+    description: "GitHub token to get around rate limits."
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: "composite"
