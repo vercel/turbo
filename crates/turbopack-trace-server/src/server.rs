@@ -1,5 +1,7 @@
 use std::{
+    collections::HashSet,
     net::{Shutdown, TcpStream},
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -17,6 +19,7 @@ use websocket::{
 };
 
 use crate::{
+    span_ref::SpanRef,
     store::SpanId,
     store_container::StoreContainer,
     u64_string,
@@ -87,6 +90,19 @@ pub struct SpanViewEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Filter {
+    pub op: Op,
+    pub value: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Op {
+    Gt,
+    Lt,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewRect {
     pub x: u64,
@@ -97,6 +113,30 @@ pub struct ViewRect {
     pub query: String,
     pub view_mode: String,
     pub value_mode: String,
+    pub value_filter: Option<Filter>,
+    pub count_filter: Option<Filter>,
+}
+
+impl ViewRect {
+    pub fn should_filter_ref(
+        &self,
+        span: &SpanRef,
+        highlighted_spans: &mut HashSet<NonZeroUsize>,
+    ) -> bool {
+        let mut has_results = false;
+        for mut result in span.search(&self.query) {
+            has_results = true;
+            highlighted_spans.insert(result.id());
+            while let Some(parent) = result.parent() {
+                result = parent;
+                if !highlighted_spans.insert(result.id()) {
+                    break;
+                }
+            }
+        }
+
+        !has_results
+    }
 }
 
 struct ConnectionState {
@@ -141,6 +181,8 @@ pub fn serve(store: Arc<StoreContainer>) -> Result<()> {
                         query: String::new(),
                         view_mode: "aggregated".to_string(),
                         value_mode: "duration".to_string(),
+                        count_filter: None,
+                        value_filter: None,
                     },
                     last_update_generation: 0,
                 }));

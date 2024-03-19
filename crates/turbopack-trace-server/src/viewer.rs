@@ -429,18 +429,7 @@ impl Viewer {
                 false,
             ) && search_mode
             {
-                let mut has_results = false;
-                for mut result in span.search(&view_rect.query) {
-                    has_results = true;
-                    highlighted_spans.insert(result.id());
-                    while let Some(parent) = result.parent() {
-                        result = parent;
-                        if !highlighted_spans.insert(result.id()) {
-                            break;
-                        }
-                    }
-                }
-                if !has_results {
+                if view_rect.should_filter_ref(&span, &mut highlighted_spans) {
                     children.last_mut().unwrap().item.filtered = true;
                 }
             }
@@ -455,7 +444,7 @@ impl Viewer {
             start,
             placeholder,
             view_mode,
-            filtered,
+            mut filtered,
         }) = queue.pop()
         {
             let line = get_line(&mut lines, line_index);
@@ -767,6 +756,36 @@ impl Viewer {
                 // add children to queue
                 enqueue_children(children, &mut queue);
 
+                // check if we should filter based on width or count
+                if !filtered {
+                    let count = match &span {
+                        QueueItem::Span(_) => 1,
+                        QueueItem::SpanGraph(span_graph) => span_graph.count(),
+                        QueueItem::SpanBottomUp(bottom_up) => bottom_up.count(),
+                        QueueItem::SpanBottomUpSpan(_) => 1,
+                    };
+
+                    let emit = view_rect
+                        .count_filter
+                        .as_ref()
+                        .map(|filter| match filter.op {
+                            crate::server::Op::Gt => count > filter.value as usize,
+                            crate::server::Op::Lt => count < filter.value as usize,
+                        })
+                        .unwrap_or(true);
+
+                    let emit2 = view_rect
+                        .value_filter
+                        .as_ref()
+                        .map(|filter| match filter.op {
+                            crate::server::Op::Gt => width > filter.value,
+                            crate::server::Op::Lt => width < filter.value,
+                        })
+                        .unwrap_or(true);
+
+                    filtered = !emit || !emit2;
+                }
+
                 // add span to line
                 line.push(LineEntry {
                     start,
@@ -833,6 +852,7 @@ impl Viewer {
                         }
                         LineEntryType::SpanGraph(graph, filtered) => {
                             let (category, text) = graph.nice_name();
+
                             ViewSpan {
                                 id: graph.id().get() as u64,
                                 start: entry.start,
@@ -847,6 +867,7 @@ impl Viewer {
                         }
                         LineEntryType::SpanBottomUp(bottom_up, filtered) => {
                             let (category, text) = bottom_up.nice_name();
+
                             ViewSpan {
                                 id: bottom_up.id().get() as u64,
                                 start: entry.start,
