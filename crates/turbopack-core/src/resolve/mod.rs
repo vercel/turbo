@@ -1536,6 +1536,7 @@ async fn resolve_internal_inline(
                 path,
                 query,
                 force_in_lookup_dir,
+                fragment,
             } => {
                 let mut results = Vec::new();
                 let matches = read_matches(
@@ -1558,6 +1559,7 @@ async fn resolve_internal_inline(
                                     options_value,
                                     options,
                                     *query,
+                                    *fragment,
                                 )
                                 .await?,
                             );
@@ -1577,6 +1579,7 @@ async fn resolve_internal_inline(
                 path,
                 query,
                 force_in_lookup_dir,
+                fragment,
             } => {
                 resolve_relative_request(
                     lookup_path,
@@ -1586,6 +1589,7 @@ async fn resolve_internal_inline(
                     path,
                     *query,
                     *force_in_lookup_dir,
+                    *fragment,
                 )
                 .await?
             }
@@ -1593,6 +1597,7 @@ async fn resolve_internal_inline(
                 module,
                 path,
                 query,
+                fragment,
             } => {
                 resolve_module_request(
                     lookup_path,
@@ -1602,13 +1607,18 @@ async fn resolve_internal_inline(
                     module,
                     path,
                     *query,
+                    *fragment,
                 )
                 .await?
             }
-            Request::ServerRelative { path, query } => {
+            Request::ServerRelative {
+                path,
+                query,
+                fragment,
+            } => {
                 let mut new_pat = path.clone();
                 new_pat.push_front(".".to_string().into());
-                let relative = Request::relative(Value::new(new_pat), *query, true);
+                let relative = Request::relative(Value::new(new_pat), *query, true, *fragment);
 
                 ResolvingIssue {
                     severity: IssueSeverity::Error.cell(),
@@ -1633,7 +1643,11 @@ async fn resolve_internal_inline(
                 )
                 .await?
             }
-            Request::Windows { path: _, query: _ } => {
+            Request::Windows {
+                path: _,
+                query: _,
+                fragment: _,
+            } => {
                 ResolvingIssue {
                     severity: IssueSeverity::Error.cell(),
                     request_type: "windows import: not implemented yet".to_string(),
@@ -1675,6 +1689,8 @@ async fn resolve_internal_inline(
             Request::Uri {
                 protocol,
                 remainder,
+                query: _,
+                fragment: _,
             } => {
                 let uri = format!("{}{}", protocol, remainder);
                 ResolveResult::primary_with_key(
@@ -1805,6 +1821,7 @@ async fn resolve_relative_request(
     path_pattern: &Pattern,
     query: Vc<String>,
     force_in_lookup_dir: bool,
+    fragment: Vc<String>,
 ) -> Result<Vc<ResolveResult>> {
     // Check alias field for aliases first
     let lookup_path_ref = &*lookup_path.await?;
@@ -1819,6 +1836,7 @@ async fn resolve_relative_request(
             Some(request)
         },
         query,
+        fragment.clone(),
     )
     .await?
     {
@@ -1869,6 +1887,7 @@ async fn resolve_relative_request(
                                 options_value,
                                 options,
                                 query,
+                                fragment.clone(),
                             )
                             .await?,
                         );
@@ -1886,6 +1905,7 @@ async fn resolve_relative_request(
                         options_value,
                         options,
                         query,
+                        fragment.clone(),
                     )
                     .await?,
                 );
@@ -1909,6 +1929,7 @@ async fn apply_in_package(
     options_value: &ResolveOptions,
     get_request: impl Fn(&FileSystemPath) -> Option<String>,
     query: Vc<String>,
+    fragment: Vc<String>,
 ) -> Result<Option<Vc<ResolveResult>>> {
     // Check alias field for module aliases first
     for in_package in options_value.in_package.iter() {
@@ -1974,7 +1995,8 @@ async fn apply_in_package(
                 resolve_internal(
                     package_path,
                     Request::parse(Value::new(Pattern::Constant(value.to_string())))
-                        .with_query(query),
+                        .with_query(query)
+                        .with_fragment(fragment),
                     options,
                 )
                 .with_replaced_request_key(value.to_string(), Value::new(request_key))
@@ -2010,6 +2032,7 @@ async fn resolve_module_request(
     module: &str,
     path: &Pattern,
     query: Vc<String>,
+    fragment: Vc<String>,
 ) -> Result<Vc<ResolveResult>> {
     // Check alias field for module aliases first
     if let Some(result) = apply_in_package(
@@ -2021,6 +2044,7 @@ async fn resolve_module_request(
             full_pattern.into_string()
         },
         query,
+        fragment.clone(),
     )
     .await?
     {
@@ -2055,6 +2079,7 @@ async fn resolve_module_request(
                     Value::new(path.clone()),
                     package_path,
                     query,
+                    fragment.clone(),
                     options,
                 ));
             }
@@ -2068,6 +2093,7 @@ async fn resolve_module_request(
                         options_value,
                         options,
                         query,
+                        fragment.clone(),
                     )
                     .await?;
                     results.push(resolved)
@@ -2090,7 +2116,7 @@ async fn resolve_module_request(
             "/".to_string().into(),
             path.clone(),
         ]);
-        let relative = Request::relative(Value::new(pattern), query, true);
+        let relative = Request::relative(Value::new(pattern), query, true, fragment.clone());
         let relative_result =
             resolve_internal_boxed(lookup_path, relative.resolve().await?, options).await?;
         let relative_result = relative_result.with_replaced_request_key(
@@ -2109,6 +2135,7 @@ async fn resolve_into_package(
     path: Value<Pattern>,
     package_path: Vc<FileSystemPath>,
     query: Vc<String>,
+    fragment: Vc<String>,
     options: Vc<ResolveOptions>,
 ) -> Result<Vc<ResolveResult>> {
     let path = path.into_value();
@@ -2173,7 +2200,7 @@ async fn resolve_into_package(
         let mut new_pat = path.clone();
         new_pat.push_front(".".to_string().into());
 
-        let relative = Request::relative(Value::new(new_pat), query, true);
+        let relative = Request::relative(Value::new(new_pat), query, true, fragment);
         results
             .push(resolve_internal_inline(package_path, relative.resolve().await?, options).await?);
     }
@@ -2257,6 +2284,7 @@ async fn resolved(
     options_value: &ResolveOptions,
     options: Vc<ResolveOptions>,
     query: Vc<String>,
+    fragment: Vc<String>,
 ) -> Result<Vc<ResolveResult>> {
     let RealPathResult { path, symlinks } = &*fs_path.realpath_with_links().await?;
 
@@ -2268,6 +2296,7 @@ async fn resolved(
         options_value,
         |package_path| package_path.get_relative_path_to(path_ref),
         query,
+        fragment.clone(),
     )
     .await?
     {
