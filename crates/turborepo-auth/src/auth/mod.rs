@@ -5,7 +5,6 @@ mod sso;
 pub use login::*;
 pub use logout::*;
 pub use sso::*;
-use turbopath::AbsoluteSystemPathBuf;
 use turborepo_api_client::{CacheClient, Client, TokenClient};
 use turborepo_ui::UI;
 
@@ -51,7 +50,7 @@ pub struct LogoutOptions<T> {
     pub invalidate: bool,
     /// Path override for testing
     #[cfg(test)]
-    pub path: Option<AbsoluteSystemPathBuf>,
+    pub path: Option<turbopath::AbsoluteSystemPathBuf>,
 }
 
 fn extract_vercel_token() -> Result<Option<String>, Error> {

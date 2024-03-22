@@ -15,7 +15,7 @@ use turbopack_core::{
 
 use super::esm::base::ReferencedAsset;
 use crate::{
-    chunk::{EcmascriptChunkPlaceable, EcmascriptChunkingContext},
+    chunk::EcmascriptChunkingContext,
     code_gen::{CodeGenerateableWithAsyncModuleInfo, CodeGeneration},
     create_visitor,
     references::esm::base::insert_hoisted_stmt,
@@ -47,7 +47,6 @@ impl OptionAsyncModuleOptions {
 /// level await statement or is referencing an external ESM module.
 #[turbo_tasks::value(shared)]
 pub struct AsyncModule {
-    pub placeable: Vc<Box<dyn EcmascriptChunkPlaceable>>,
     pub references: Vc<ModuleReferences>,
     pub has_top_level_await: bool,
     pub import_externals: bool,

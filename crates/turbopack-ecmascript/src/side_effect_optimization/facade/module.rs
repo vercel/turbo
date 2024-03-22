@@ -42,7 +42,6 @@ impl EcmascriptModuleFacadeModule {
     #[turbo_tasks::function]
     pub fn async_module(self: Vc<Self>) -> Vc<AsyncModule> {
         AsyncModule {
-            placeable: Vc::upcast(self),
             references: self.references(),
             has_top_level_await: false,
             import_externals: false,

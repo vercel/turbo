@@ -20,9 +20,11 @@ use turbopack_core::{
 // TODO remove this
 pub use turbopack_resolve::typescript as resolve;
 use turbopack_resolve::{
-    ecmascript::{apply_cjs_specific_options, cjs_resolve},
+    ecmascript::apply_cjs_specific_options,
     typescript::{read_from_tsconfigs, read_tsconfigs, type_resolve},
 };
+
+use crate::resolve::cjs_resolve;
 
 #[turbo_tasks::value]
 pub struct TsConfigModuleAsset {

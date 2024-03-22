@@ -5,6 +5,7 @@ pub mod constant_condition;
 pub mod constant_value;
 pub mod dynamic_expression;
 pub mod esm;
+pub mod external_module;
 pub mod node;
 pub mod pattern_mapping;
 pub mod raw;
@@ -68,10 +69,7 @@ use turbopack_core::{
     source::Source,
     source_map::{GenerateSourceMap, OptionSourceMap, SourceMap},
 };
-use turbopack_resolve::{
-    ecmascript::{apply_cjs_specific_options, cjs_resolve, try_to_severity},
-    typescript::tsconfig,
-};
+use turbopack_resolve::{ecmascript::apply_cjs_specific_options, typescript::tsconfig};
 use turbopack_swc_utils::emitter::IssueEmitter;
 use unreachable::Unreachable;
 
@@ -130,6 +128,7 @@ use crate::{
         require_context::{RequireContextAssetReference, RequireContextMap},
         type_issue::SpecifiedModuleTypeIssue,
     },
+    resolve::{cjs_resolve, try_to_severity},
     tree_shake::{part_of_module, split},
     EcmascriptInputTransforms, EcmascriptModuleAsset, SpecifiedModuleType, TreeShakingMode,
 };
@@ -749,7 +748,6 @@ pub(crate) async fn analyse_ecmascript_module_internal(
 
     if eval_context.is_esm() || specified_type == SpecifiedModuleType::EcmaScript {
         let async_module = AsyncModule {
-            placeable: Vc::upcast(module),
             references: Vc::cell(import_references.iter().map(|&r| Vc::upcast(r)).collect()),
             has_top_level_await,
             import_externals,

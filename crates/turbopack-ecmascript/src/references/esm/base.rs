@@ -21,7 +21,6 @@ use turbopack_core::{
         ExternalType, ModulePart, ModuleResolveResult, ModuleResolveResultItem,
     },
 };
-use turbopack_resolve::ecmascript::esm_resolve;
 
 use crate::{
     analyzer::imports::ImportAnnotations,
@@ -29,6 +28,7 @@ use crate::{
     code_gen::{CodeGenerateable, CodeGeneration},
     create_visitor, magic_identifier,
     references::util::{request_to_string, throw_module_not_found_expr},
+    resolve::esm_resolve,
 };
 
 #[turbo_tasks::value]
@@ -153,6 +153,7 @@ impl ModuleReference for EsmAssetReference {
             ty,
             IssueSeverity::Error.cell(),
             self.issue_source,
+            self.import_externals,
         ))
     }
 }
