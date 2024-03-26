@@ -96,7 +96,7 @@ impl Run {
         }
     }
 
-    pub async fn run(mut self) -> Result<i32, Error> {
+    pub async fn run(&mut self) -> Result<i32, Error> {
         let analytics_handle = self.analytics_handle.take();
         let result = self.run_with_analytics().await;
 
@@ -109,7 +109,7 @@ impl Run {
 
     // We split this into a separate function because we need
     // to close the AnalyticsHandle regardless of whether the run succeeds or not
-    async fn run_with_analytics(self) -> Result<i32, Error> {
+    async fn run_with_analytics(&mut self) -> Result<i32, Error> {
         if self.opts.run_opts.dry_run.is_none() && self.opts.run_opts.graph.is_none() {
             self.print_run_prelude();
         }
@@ -202,7 +202,7 @@ impl Run {
             &self.repo_root,
             self.version,
             self.opts.run_opts.experimental_space_id.clone(),
-            self.api_client,
+            self.api_client.clone(),
             self.api_auth.clone(),
             Vendor::get_user(),
             &self.scm,
@@ -210,11 +210,11 @@ impl Run {
 
         let mut visitor = Visitor::new(
             self.pkg_dep_graph.clone(),
-            self.run_cache,
+            self.run_cache.clone(),
             run_tracker,
-            self.task_access,
+            &self.task_access,
             &self.opts.run_opts,
-            self.package_inputs_hashes,
+            std::mem::take(&mut self.package_inputs_hashes),
             &self.env_at_execution_start,
             &global_hash,
             self.opts.run_opts.env_mode,
@@ -256,7 +256,7 @@ impl Run {
         visitor
             .finish(
                 exit_code,
-                self.filtered_pkgs,
+                &self.filtered_pkgs,
                 global_hash_inputs,
                 &self.engine,
                 &self.env_at_execution_start,

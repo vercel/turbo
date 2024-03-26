@@ -657,6 +657,12 @@ impl TurboJson {
             .flat_map(|validation| validation(self))
             .collect()
     }
+
+    pub fn has_root_tasks(&self) -> bool {
+        self.pipeline
+            .iter()
+            .any(|(task_name, _)| task_name.package() == Some(ROOT_PKG_NAME))
+    }
 }
 
 type TurboJSONValidation = fn(&TurboJson) -> Vec<Error>;

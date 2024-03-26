@@ -94,7 +94,8 @@ message DiscoverPackagesRequest {
 
 }
 
-message PackageChangesRequest {}
+message PackageChangesRequest {
+}
 
 message PackageChangeEvent {
   oneof event {
@@ -122,7 +123,6 @@ message DiscoverPackagesResponse {
 message PackageFiles {
   string package_json = 1;
   optional string turbo_json = 2;
-
 }
 
 enum PackageManager {
