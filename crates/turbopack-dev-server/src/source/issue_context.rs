@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use turbo_tasks::{Value, Vc};
 use turbo_tasks_fs::FileSystemPath;
@@ -15,7 +17,7 @@ use super::{
 #[turbo_tasks::value]
 pub struct IssueFilePathContentSource {
     file_path: Option<Vc<FileSystemPath>>,
-    description: String,
+    description: Arc<String>,
     source: Vc<Box<dyn ContentSource>>,
 }
 
@@ -24,7 +26,7 @@ impl IssueFilePathContentSource {
     #[turbo_tasks::function]
     pub fn new_file_path(
         file_path: Vc<FileSystemPath>,
-        description: String,
+        description: Arc<String>,
         source: Vc<Box<dyn ContentSource>>,
     ) -> Vc<Self> {
         IssueFilePathContentSource {
@@ -36,7 +38,10 @@ impl IssueFilePathContentSource {
     }
 
     #[turbo_tasks::function]
-    pub fn new_description(description: String, source: Vc<Box<dyn ContentSource>>) -> Vc<Self> {
+    pub fn new_description(
+        description: Arc<String>,
+        source: Vc<Box<dyn ContentSource>>,
+    ) -> Vc<Self> {
         IssueFilePathContentSource {
             file_path: None,
             description,
@@ -54,7 +59,7 @@ impl ContentSource for IssueFilePathContentSource {
         let routes = this
             .source
             .get_routes()
-            .issue_file_path(this.file_path, &this.description)
+            .issue_file_path(this.file_path, &*this.description)
             .await?;
         Ok(routes.map_routes(Vc::upcast(
             IssueContextContentSourceMapper { source: self }.cell(),
@@ -103,7 +108,7 @@ impl GetContentSourceContent for IssueContextGetContentSourceContent {
         let result = self
             .get_content
             .vary()
-            .issue_file_path(source.file_path, &source.description)
+            .issue_file_path(source.file_path, &*source.description)
             .await?;
         Ok(result)
     }
@@ -111,14 +116,14 @@ impl GetContentSourceContent for IssueContextGetContentSourceContent {
     #[turbo_tasks::function]
     async fn get(
         &self,
-        path: String,
+        path: Arc<String>,
         data: Value<ContentSourceData>,
     ) -> Result<Vc<ContentSourceContent>> {
         let source = self.source.await?;
         let result = self
             .get_content
             .get(path, data)
-            .issue_file_path(source.file_path, &source.description)
+            .issue_file_path(source.file_path, &*source.description)
             .await?;
         Ok(result)
     }
@@ -148,7 +153,7 @@ impl Introspectable for IssueFilePathContentSource {
                 let title = source.title().await?;
                 Vc::cell(format!("{}: {}", self.description, title))
             } else {
-                Vc::cell(self.description.clone())
+                Vc::cell((*self.description).clone())
             },
         )
     }

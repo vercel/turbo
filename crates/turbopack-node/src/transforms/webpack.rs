@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{mem::take, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
@@ -78,7 +78,7 @@ pub struct WebpackLoaders {
     evaluate_context: Vc<Box<dyn AssetContext>>,
     execution_context: Vc<ExecutionContext>,
     loaders: Vc<WebpackLoaderItems>,
-    rename_as: Option<String>,
+    rename_as: Option<Arc<String>>,
     resolve_options_context: Vc<ResolveOptionsContext>,
 }
 
@@ -89,7 +89,7 @@ impl WebpackLoaders {
         evaluate_context: Vc<Box<dyn AssetContext>>,
         execution_context: Vc<ExecutionContext>,
         loaders: Vc<WebpackLoaderItems>,
-        rename_as: Option<String>,
+        rename_as: Option<Arc<String>>,
         resolve_options_context: Vc<ResolveOptionsContext>,
     ) -> Vc<Self> {
         WebpackLoaders {
@@ -129,7 +129,7 @@ impl Source for WebpackLoadersProcessedAsset {
     async fn ident(&self) -> Result<Vc<AssetIdent>> {
         Ok(
             if let Some(rename_as) = self.transform.await?.rename_as.as_deref() {
-                self.source.ident().rename_as(rename_as.to_string())
+                self.source.ident().rename_as(rename_as.to_string().into())
             } else {
                 self.source.ident()
             },
@@ -164,7 +164,7 @@ struct ProcessWebpackLoadersResult {
 fn webpack_loaders_executor(evaluate_context: Vc<Box<dyn AssetContext>>) -> Vc<ProcessResult> {
     evaluate_context.process(
         Vc::upcast(FileSource::new(embed_file_path(
-            "transforms/webpack-loaders.ts".to_string(),
+            "transforms/webpack-loaders.ts".to_string().into(),
         ))),
         Value::new(ReferenceType::Internal(InnerAssets::empty())),
     )
@@ -325,13 +325,13 @@ pub enum InfoMessage {
 #[serde(rename_all = "camelCase")]
 
 pub struct WebpackResolveOptions {
-    alias_fields: Option<Vec<String>>,
-    condition_names: Option<Vec<String>>,
+    alias_fields: Option<Vec<Arc<String>>>,
+    condition_names: Option<Vec<Arc<String>>>,
     no_package_json: bool,
-    extensions: Option<Vec<String>>,
-    main_fields: Option<Vec<String>>,
+    extensions: Option<Vec<Arc<String>>>,
+    main_fields: Option<Vec<Arc<String>>>,
     no_exports_field: bool,
-    main_files: Option<Vec<String>>,
+    main_files: Option<Vec<Arc<String>>>,
     no_modules: bool,
     prefer_relative: bool,
 }
@@ -426,13 +426,13 @@ impl EvaluateContext for WebpackLoaderContext {
                 // TODO We might miss some changes that happened during execution
                 // Read dependencies to make them a dependencies of this task. This task will
                 // execute again when they change.
-                self.cwd.join(path).read().await?;
+                self.cwd.join(path.into()).read().await?;
             }
             InfoMessage::BuildDependency { path } => {
                 // TODO We might miss some changes that happened during execution
                 BuildDependencyIssue {
                     context_ident: self.context_ident_for_issue,
-                    path: self.cwd.join(path),
+                    path: self.cwd.join(path.into()),
                 }
                 .cell()
                 .emit();
@@ -441,7 +441,12 @@ impl EvaluateContext for WebpackLoaderContext {
                 // TODO We might miss some changes that happened during execution
                 // Read dependencies to make them a dependencies of this task. This task will
                 // execute again when they change.
-                dir_dependency(self.cwd.join(path).read_glob(Glob::new(glob), false)).await?;
+                dir_dependency(
+                    self.cwd
+                        .join(path.into())
+                        .read_glob(Glob::new(glob.into()), false),
+                )
+                .await?;
             }
             InfoMessage::EmittedError { error, severity } => {
                 EvaluateEmittedErrorIssue {
@@ -477,7 +482,7 @@ impl EvaluateContext for WebpackLoaderContext {
                 let Some(resolve_options_context) = self.resolve_options_context else {
                     bail!("Resolve options are not available in this context");
                 };
-                let lookup_path = self.cwd.join(lookup_path);
+                let lookup_path = self.cwd.join(lookup_path.into());
                 let request = Request::parse(Value::new(Pattern::Constant(request)));
                 let options = resolve_options(lookup_path, resolve_options_context);
 
@@ -563,7 +568,7 @@ async fn apply_webpack_resolve_options(
             .extract_if(|field| matches!(field, ResolveInPackage::AliasField(..)))
             .collect::<Vec<_>>();
         for field in alias_fields {
-            if field == "..." {
+            if &**field == "..." {
                 resolve_options.in_package.extend(take(&mut old));
             } else {
                 resolve_options
@@ -576,10 +581,10 @@ async fn apply_webpack_resolve_options(
         for conditions in get_condition_maps(&mut resolve_options) {
             let mut old = take(conditions);
             for name in &condition_names {
-                if name == "..." {
+                if &***name == "..." {
                     conditions.extend(take(&mut old));
                 } else {
-                    conditions.insert(name.clone(), ConditionValue::Set);
+                    conditions.insert((**name).clone(), ConditionValue::Set);
                 }
             }
         }
@@ -593,7 +598,7 @@ async fn apply_webpack_resolve_options(
         });
     }
     if let Some(mut extensions) = webpack_resolve_options.extensions {
-        if let Some(pos) = extensions.iter().position(|ext| ext == "...") {
+        if let Some(pos) = extensions.iter().position(|ext| &***ext == "...") {
             extensions.splice(pos..=pos, take(&mut resolve_options.extensions));
         }
         resolve_options.extensions = extensions;
@@ -604,7 +609,7 @@ async fn apply_webpack_resolve_options(
             .extract_if(|field| matches!(field, ResolveIntoPackage::MainField { .. }))
             .collect::<Vec<_>>();
         for field in main_fields {
-            if field == "..." {
+            if &**field == "..." {
                 resolve_options.into_package.extend(take(&mut old));
             } else {
                 resolve_options
@@ -695,7 +700,7 @@ async fn dir_dependency_shallow(glob: Vc<ReadGlobResult>) -> Result<Vc<Completio
                 file.track().await?;
             }
             DirectoryEntry::Directory(dir) => {
-                dir_dependency(dir.read_glob(Glob::new("**".to_string()), false)).await?;
+                dir_dependency(dir.read_glob(Glob::new("**".to_string().into()), false)).await?;
             }
             DirectoryEntry::Symlink(symlink) => {
                 symlink.read_link().await?;

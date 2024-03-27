@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display};
+use std::{borrow::Cow, fmt::Display, sync::Arc};
 
 use anyhow::Result;
 use mime::APPLICATION_JSON;
@@ -88,7 +88,7 @@ pub struct SourceMapTrace {
     map: Vc<SourceMap>,
     line: usize,
     column: usize,
-    name: Option<String>,
+    name: Option<Arc<String>>,
 }
 
 /// The result of performing a source map trace.
@@ -106,7 +106,7 @@ impl SourceMapTrace {
         map: Vc<SourceMap>,
         line: usize,
         column: usize,
-        name: Option<String>,
+        name: Option<Arc<String>>,
     ) -> Vc<Self> {
         SourceMapTrace {
             map,
@@ -140,7 +140,11 @@ impl SourceMapTrace {
                 file: t.original_file.clone().into(),
                 line: Some(t.original_line.saturating_add(1)),
                 column: Some(t.original_column.saturating_add(1)),
-                name: t.name.clone().or_else(|| this.name.clone()).map(Into::into),
+                name: t
+                    .name
+                    .clone()
+                    .or_else(|| this.name.as_deref().cloned())
+                    .map(Into::into),
             }),
             _ => TraceResult::NotFound,
         };

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use swc_core::ecma::ast::Lit;
 use turbo_tasks::{Value, ValueToString, Vc};
@@ -96,7 +98,7 @@ impl ModuleReference for WebpackChunkAssetReference {
                     Lit::Num(num) => format!("{num}"),
                     _ => todo!(),
                 };
-                let filename = format!("./chunks/{}.js", chunk_id);
+                let filename = Arc::new(format!("./chunks/{}.js", chunk_id));
                 let source = Vc::upcast(FileSource::new(context_path.join(filename)));
 
                 ModuleResolveResult::module(Vc::upcast(WebpackModuleAsset::new(

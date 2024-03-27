@@ -392,29 +392,29 @@ fn node_file_trace<B: Backend + 'static>(
 
         for _ in 0..run_count {
             let bench_suites = bench_suites.clone();
-            let package_root = package_root.clone();
+            let package_root = Arc::new(package_root.clone());
             let input_string = input.clone();
-            let directory = directory.clone();
+            let directory = Arc::new(directory.clone());
             #[cfg(not(feature = "bench_against_node_nft"))]
-            let expected_stderr = expected_stderr.clone();
+            let expected_stderr = expected_stderr.clone().map(Arc::new);
             let task = async move {
                 #[allow(unused)]
                 let bench_suites = bench_suites.clone();
                 #[cfg(feature = "bench_against_node_nft")]
                 let before_start = Instant::now();
                 let workspace_fs: Vc<Box<dyn FileSystem>> = Vc::upcast(DiskFileSystem::new(
-                    "workspace".to_string(),
+                    "workspace".to_string().into(),
                     package_root.clone(),
                     vec![],
                 ));
                 let input_dir = workspace_fs.root();
-                let input = input_dir.join(format!("tests/{input_string}"));
+                let input = input_dir.join(format!("tests/{input_string}").into());
 
                 #[cfg(not(feature = "bench_against_node_nft"))]
                 let original_output = exec_node(package_root, input);
 
                 let output_fs =
-                    DiskFileSystem::new("output".to_string(), directory.clone(), vec![]);
+                    DiskFileSystem::new("output".to_string().into(), directory.clone(), vec![]);
                 let output_dir = output_fs.root();
 
                 let source = FileSource::new(input);
@@ -435,7 +435,7 @@ fn node_file_trace<B: Backend + 'static>(
                     ResolveOptionsContext {
                         enable_node_native_modules: true,
                         enable_node_modules: Some(input_dir),
-                        custom_conditions: vec!["node".to_string()],
+                        custom_conditions: vec!["node".to_string().into()],
                         ..Default::default()
                     }
                     .cell(),
@@ -574,11 +574,11 @@ impl Display for CommandOutput {
 }
 
 #[turbo_tasks::function]
-async fn exec_node(directory: String, path: Vc<FileSystemPath>) -> Result<Vc<CommandOutput>> {
+async fn exec_node(directory: Arc<String>, path: Vc<FileSystemPath>) -> Result<Vc<CommandOutput>> {
     let mut cmd = Command::new("node");
 
     let p = path.await?;
-    let f = Path::new(&directory).join(&p.path);
+    let f = Path::new(&*directory).join(&*p.path);
     let dir = f.parent().unwrap();
     println!("[CWD]: {}", dir.display());
     let label = path.to_string().await?;
@@ -673,15 +673,15 @@ fn diff(expected: &str, actual: &str) -> String {
 async fn assert_output(
     expected: Vc<CommandOutput>,
     actual: Vc<CommandOutput>,
-    expected_stderr: Option<String>,
+    expected_stderr: Option<Arc<String>>,
 ) -> Result<Vc<CommandOutput>> {
     let expected = expected.await?;
     let actual = actual.await?;
     Ok(CommandOutput::cell(CommandOutput {
         stdout: diff(&expected.stdout, &actual.stdout),
         stderr: if let Some(expected_stderr) = expected_stderr {
-            if actual.stderr.contains(&expected_stderr)
-                && expected.stderr.contains(&expected_stderr)
+            if actual.stderr.contains(&*expected_stderr)
+                && expected.stderr.contains(&*expected_stderr)
             {
                 String::new()
             } else {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use turbo_tasks::{Completion, Vc};
 use turbo_tasks_fs::{
@@ -25,7 +27,10 @@ pub enum AssetContent {
     // for the relative link, the target is raw value read from the link
     // for the absolute link, the target is stripped of the root path while reading
     // See [LinkContent::Link] for more details.
-    Redirect { target: String, link_type: LinkType },
+    Redirect {
+        target: Arc<String>,
+        link_type: LinkType,
+    },
 }
 
 #[turbo_tasks::value_impl]

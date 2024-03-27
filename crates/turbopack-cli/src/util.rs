@@ -1,4 +1,4 @@
-use std::{env::current_dir, path::PathBuf};
+use std::{env::current_dir, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use dunce::canonicalize;
@@ -11,8 +11,8 @@ pub struct EntryRequests(pub Vec<Vc<EntryRequest>>);
 #[turbo_tasks::value(shared)]
 #[derive(Clone)]
 pub enum EntryRequest {
-    Relative(String),
-    Module(String, String),
+    Relative(Arc<String>),
+    Module(Arc<String>, Arc<String>),
 }
 
 pub struct NormalizedDirs {
@@ -60,15 +60,15 @@ pub fn normalize_entries(entries: &Option<Vec<String>>) -> Vec<String> {
 }
 
 #[turbo_tasks::function]
-pub async fn project_fs(project_dir: String) -> Result<Vc<Box<dyn FileSystem>>> {
-    let disk_fs = DiskFileSystem::new("project".to_string(), project_dir.to_string(), vec![]);
+pub async fn project_fs(project_dir: Arc<String>) -> Result<Vc<Box<dyn FileSystem>>> {
+    let disk_fs = DiskFileSystem::new("project".to_string().into(), project_dir, vec![]);
     disk_fs.await?.start_watching()?;
     Ok(Vc::upcast(disk_fs))
 }
 
 #[turbo_tasks::function]
-pub async fn output_fs(project_dir: String) -> Result<Vc<Box<dyn FileSystem>>> {
-    let disk_fs = DiskFileSystem::new("output".to_string(), project_dir.to_string(), vec![]);
+pub async fn output_fs(project_dir: Arc<String>) -> Result<Vc<Box<dyn FileSystem>>> {
+    let disk_fs = DiskFileSystem::new("output".to_string().into(), project_dir, vec![]);
     disk_fs.await?.start_watching()?;
     Ok(Vc::upcast(disk_fs))
 }

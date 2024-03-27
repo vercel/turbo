@@ -464,13 +464,13 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                         let path = &m[1];
                         analysis.add_reference(TsReferencePathAssetReference::new(
                             origin,
-                            path.to_string(),
+                            path.to_string().into(),
                         ));
                     } else if let Some(m) = REFERENCE_TYPES.captures(text) {
                         let types = &m[1];
                         analysis.add_reference(TsReferenceTypeAssetReference::new(
                             origin,
-                            types.to_string(),
+                            types.to_string().into(),
                         ));
                     }
                 }
@@ -497,7 +497,7 @@ pub(crate) async fn analyse_ecmascript_module_internal(
     if let Some((_, path)) = paths_by_pos.into_iter().max_by_key(|&(pos, _)| pos) {
         let origin_path = origin.origin_path();
         if path.ends_with(".map") {
-            let source_map_origin = origin_path.parent().join(path.to_string());
+            let source_map_origin = origin_path.parent().join(path.to_string().into());
             let reference = SourceMapReference::new(origin_path, source_map_origin);
             analysis.add_reference(reference);
             let source_map = reference.generate_source_map();
@@ -508,7 +508,7 @@ pub(crate) async fn analyse_ecmascript_module_internal(
             source_map_from_comment = true;
         } else if path.starts_with("data:application/json;base64,") {
             let source_map_origin = origin_path;
-            let source_map = maybe_decode_data_url(path.to_string());
+            let source_map = maybe_decode_data_url(path.to_string().into());
             analysis.set_source_map(convert_to_turbopack_source_map(
                 source_map,
                 source_map_origin,
@@ -551,7 +551,9 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                         evaluation_references.push(i);
                         Some(ModulePart::evaluation())
                     }
-                    ImportedSymbol::Symbol(name) => Some(ModulePart::export(name.to_string())),
+                    ImportedSymbol::Symbol(name) => {
+                        Some(ModulePart::export(name.to_string().into()))
+                    }
                     ImportedSymbol::Namespace => None,
                 },
                 Some(TreeShakingMode::ReexportsOnly) => match &r.imported_symbol {
@@ -559,7 +561,9 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                         evaluation_references.push(i);
                         Some(ModulePart::evaluation())
                     }
-                    ImportedSymbol::Symbol(name) => Some(ModulePart::export(name.to_string())),
+                    ImportedSymbol::Symbol(name) => {
+                        Some(ModulePart::export(name.to_string().into()))
+                    }
                     ImportedSymbol::Namespace => None,
                 },
                 None => None,
@@ -596,7 +600,7 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                     }
                     Reexport::Namespace { exported: n } => {
                         visitor.esm_exports.insert(
-                            n.to_string(),
+                            n.to_string().into(),
                             EsmExport::ImportedNamespace(Vc::upcast(import_ref)),
                         );
                     }
@@ -605,8 +609,11 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                         exported: e,
                     } => {
                         visitor.esm_exports.insert(
-                            e.to_string(),
-                            EsmExport::ImportedBinding(Vc::upcast(import_ref), i.to_string()),
+                            e.to_string().into(),
+                            EsmExport::ImportedBinding(
+                                Vc::upcast(import_ref),
+                                i.to_string().into(),
+                            ),
                         );
                     }
                 }
@@ -1045,7 +1052,11 @@ pub(crate) async fn analyse_ecmascript_module_internal(
                             .add_reference(EsmModuleIdAssetReference::new(*r, Vc::cell(ast_path)))
                     } else {
                         analysis.add_local_reference(*r);
-                        analysis.add_code_gen(EsmBinding::new(*r, export, Vc::cell(ast_path)));
+                        analysis.add_code_gen(EsmBinding::new(
+                            *r,
+                            export.map(From::from),
+                            Vc::cell(ast_path),
+                        ));
                     }
                 }
             }
@@ -1583,7 +1594,7 @@ async fn handle_call<G: Fn(Vec<Effect>) + Send + Sync>(
                     let current_context = origin
                         .origin_path()
                         .root()
-                        .join(s.trim_start_matches("/ROOT/").to_string());
+                        .join(s.trim_start_matches("/ROOT/").to_string().into());
                     analysis.add_reference(NodeGypBuildReference::new(
                         current_context,
                         compile_time_info.environment().compile_target(),
@@ -1611,7 +1622,7 @@ async fn handle_call<G: Fn(Vec<Effect>) + Send + Sync>(
                 if let Some(ref s) = first_arg.as_str() {
                     analysis.add_reference(NodeBindingsReference::new(
                         origin.origin_path(),
-                        s.to_string(),
+                        s.to_string().into(),
                     ));
                     return Ok(());
                 }
@@ -1942,7 +1953,7 @@ async fn handle_free_var_reference(
                     Some(TreeShakingMode::ModuleFragments)
                     | Some(TreeShakingMode::ReexportsOnly) => export
                         .as_ref()
-                        .map(|export| ModulePart::export(export.to_string())),
+                        .map(|export| ModulePart::export(export.to_string().into())),
                     None => None,
                 },
                 state.import_externals,
@@ -1952,7 +1963,7 @@ async fn handle_free_var_reference(
             analysis.add_reference(esm_reference);
             analysis.add_code_gen(EsmBinding::new(
                 esm_reference,
-                export.clone(),
+                export.clone().map(From::from),
                 Vc::cell(ast_path.to_vec()),
             ));
         }
@@ -2101,7 +2112,7 @@ fn analyze_amd_define_with_deps(
                     requests.push(AmdDefineDependencyElement::Module);
                 }
                 _ => {
-                    let request = Request::parse_string(dep.to_string());
+                    let request = Request::parse_string(dep.to_string().into());
                     let reference = AmdDefineAssetReference::new(
                         origin,
                         request,
@@ -2439,7 +2450,7 @@ struct ModuleReferencesVisitor<'a> {
     old_analyser: StaticAnalyser,
     import_references: &'a [Vc<EsmAssetReference>],
     analysis: &'a mut AnalyzeEcmascriptModuleResultBuilder,
-    esm_exports: BTreeMap<String, EsmExport>,
+    esm_exports: BTreeMap<Arc<String>, EsmExport>,
     esm_star_exports: Vec<Vc<Box<dyn ModuleReference>>>,
     webpack_runtime: Option<(String, Span)>,
     webpack_entry: bool,
@@ -2566,8 +2577,8 @@ impl<'a> VisitAstPath for ModuleReferencesVisitor<'a> {
                         );
                     }
                     ExportSpecifier::Named(ExportNamedSpecifier { orig, exported, .. }) => {
-                        let key = to_string(exported.as_ref().unwrap_or(orig));
-                        let binding_name = to_string(orig);
+                        let key = Arc::new(to_string(exported.as_ref().unwrap_or(orig)));
+                        let binding_name = Arc::new(to_string(orig));
                         let export = {
                             let imported_binding = if let ModuleExportName::Ident(ident) = orig {
                                 self.eval_context.imports.get_binding(&ident.to_id())
@@ -2577,7 +2588,7 @@ impl<'a> VisitAstPath for ModuleReferencesVisitor<'a> {
                             if let Some((index, export)) = imported_binding {
                                 let esm_ref = self.import_references[index];
                                 if let Some(export) = export {
-                                    EsmExport::ImportedBinding(Vc::upcast(esm_ref), export)
+                                    EsmExport::ImportedBinding(Vc::upcast(esm_ref), export.into())
                                 } else {
                                     EsmExport::ImportedNamespace(Vc::upcast(esm_ref))
                                 }
@@ -2601,6 +2612,7 @@ impl<'a> VisitAstPath for ModuleReferencesVisitor<'a> {
         ast_path: &mut AstNodePath<AstParentNodeRef<'r>>,
     ) {
         for_each_ident_in_decl(&export.decl, &mut |name| {
+            let name = Arc::new(name);
             self.esm_exports
                 .insert(name.clone(), EsmExport::LocalBinding(name));
         });
@@ -2615,8 +2627,8 @@ impl<'a> VisitAstPath for ModuleReferencesVisitor<'a> {
         ast_path: &mut AstNodePath<AstParentNodeRef<'r>>,
     ) {
         self.esm_exports.insert(
-            "default".to_string(),
-            EsmExport::LocalBinding(magic_identifier::mangle("default export")),
+            "default".to_string().into(),
+            EsmExport::LocalBinding(magic_identifier::mangle("default export").into()),
         );
         self.analysis
             .add_code_gen(EsmModuleItem::new(Vc::cell(as_parent_path(ast_path))));
@@ -2631,12 +2643,13 @@ impl<'a> VisitAstPath for ModuleReferencesVisitor<'a> {
         match &export.decl {
             DefaultDecl::Class(ClassExpr { ident, .. }) | DefaultDecl::Fn(FnExpr { ident, .. }) => {
                 self.esm_exports.insert(
-                    "default".to_string(),
+                    "default".to_string().into(),
                     EsmExport::LocalBinding(
                         ident
                             .as_ref()
                             .map(|i| i.sym.to_string())
-                            .unwrap_or_else(|| magic_identifier::mangle("default export")),
+                            .unwrap_or_else(|| magic_identifier::mangle("default export"))
+                            .into(),
                     ),
                 );
             }
@@ -2938,7 +2951,7 @@ fn is_invoking_node_process_eval(args: &[JsValue]) -> bool {
 }
 
 #[turbo_tasks::function]
-fn maybe_decode_data_url(url: String) -> Vc<OptionSourceMap> {
+fn maybe_decode_data_url(url: Arc<String>) -> Vc<OptionSourceMap> {
     if let Ok(map) = decode_data_url(&url) {
         Vc::cell(Some(SourceMap::new_decoded(map).cell()))
     } else {

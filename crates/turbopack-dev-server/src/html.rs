@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use mime_guess::mime::TEXT_HTML_UTF_8;
 use turbo_tasks::{ReadRef, TryJoinIterExt, Value, Vc};
@@ -31,7 +33,7 @@ type DevHtmlEntry = (
 pub struct DevHtmlAsset {
     path: Vc<FileSystemPath>,
     entries: Vec<DevHtmlEntry>,
-    body: Option<String>,
+    body: Option<Arc<String>>,
 }
 
 #[turbo_tasks::function]
@@ -80,7 +82,7 @@ impl DevHtmlAsset {
     pub fn new_with_body(
         path: Vc<FileSystemPath>,
         entries: Vec<DevHtmlEntry>,
-        body: String,
+        body: Arc<String>,
     ) -> Vc<Self> {
         DevHtmlAsset {
             path,
@@ -101,7 +103,7 @@ impl DevHtmlAsset {
     }
 
     #[turbo_tasks::function]
-    pub async fn with_body(self: Vc<Self>, body: String) -> Result<Vc<Self>> {
+    pub async fn with_body(self: Vc<Self>, body: Arc<String>) -> Result<Vc<Self>> {
         let mut html: DevHtmlAsset = self.await?.clone_value();
         html.body = Some(body);
         Ok(html.cell())
@@ -118,7 +120,7 @@ impl DevHtmlAsset {
         for chunk in &*self.chunks().await? {
             let chunk_path = &*chunk.ident().path().await?;
             if let Some(relative_path) = context_path.get_path_to(chunk_path) {
-                chunk_paths.push(format!("/{relative_path}"));
+                chunk_paths.push(format!("/{relative_path}").into());
             }
         }
 
@@ -167,12 +169,12 @@ impl DevHtmlAsset {
 
 #[turbo_tasks::value]
 struct DevHtmlAssetContent {
-    chunk_paths: Vec<String>,
-    body: Option<String>,
+    chunk_paths: Vec<Arc<String>>,
+    body: Option<Arc<String>>,
 }
 
 impl DevHtmlAssetContent {
-    fn new(chunk_paths: Vec<String>, body: Option<String>) -> Vc<Self> {
+    fn new(chunk_paths: Vec<Arc<String>>, body: Option<Arc<String>>) -> Vc<Self> {
         DevHtmlAssetContent { chunk_paths, body }.cell()
     }
 }

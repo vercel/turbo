@@ -1,4 +1,4 @@
-use std::{fmt::Write, mem::replace};
+use std::{fmt::Write, mem::replace, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -20,7 +20,7 @@ pub enum RouteType {
 /// Some normal segment of a route.
 #[derive(TaskInput, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TraceRawVcs)]
 pub enum BaseSegment {
-    Static(String),
+    Static(Arc<String>),
     Dynamic,
 }
 
@@ -28,7 +28,7 @@ impl BaseSegment {
     pub fn from_static_pathname(str: &str) -> impl Iterator<Item = BaseSegment> + '_ {
         str.split('/')
             .filter(|s| !s.is_empty())
-            .map(|s| BaseSegment::Static(s.to_string()))
+            .map(|s| BaseSegment::Static(s.to_string().into()))
     }
 }
 
@@ -98,7 +98,7 @@ impl RouteTrees {
 pub struct RouteTree {
     base: Vec<BaseSegment>,
     sources: Vec<Vc<Box<dyn GetContentSourceContent>>>,
-    static_segments: IndexMap<String, Vc<RouteTree>>,
+    static_segments: IndexMap<Arc<String>, Vc<RouteTree>>,
     dynamic_segments: Vec<Vc<RouteTree>>,
     catch_all_sources: Vec<Vc<Box<dyn GetContentSourceContent>>>,
     fallback_sources: Vec<Vc<Box<dyn GetContentSourceContent>>>,
@@ -254,7 +254,7 @@ impl RouteTree {
     // TODO(WEB-1252) It's unneccesary to compute all [`GetContentSourceContent`]s at once, we could
     // return some lazy iterator to make it more efficient.
     #[turbo_tasks::function]
-    pub async fn get(self: Vc<Self>, path: String) -> Result<Vc<GetContentSourceContents>> {
+    pub async fn get(self: Vc<Self>, path: Arc<String>) -> Result<Vc<GetContentSourceContents>> {
         let RouteTree {
             base,
             sources,
@@ -278,7 +278,7 @@ impl RouteTree {
                 };
                 match base {
                     BaseSegment::Static(str) => {
-                        if str != segment {
+                        if **str != segment {
                             return Ok(Vc::cell(vec![]));
                         }
                     }
@@ -289,12 +289,23 @@ impl RouteTree {
             }
 
             if let Some(segment) = segments.next() {
+                let segment = Arc::new(segment.to_owned());
                 let remainder = segments.remainder().unwrap_or("");
-                if let Some(tree) = static_segments.get(segment) {
-                    results.extend(tree.get(remainder.to_string()).await?.iter().copied());
+                if let Some(tree) = static_segments.get(&segment) {
+                    results.extend(
+                        tree.get(remainder.to_string().into())
+                            .await?
+                            .iter()
+                            .copied(),
+                    );
                 }
                 for tree in dynamic_segments.iter() {
-                    results.extend(tree.get(remainder.to_string()).await?.iter().copied());
+                    results.extend(
+                        tree.get(remainder.to_string().into())
+                            .await?
+                            .iter()
+                            .copied(),
+                    );
                 }
             } else {
                 results.extend(sources.iter().copied());

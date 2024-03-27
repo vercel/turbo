@@ -3258,7 +3258,7 @@ impl WellKnownObjectKind {
 
 #[derive(Debug, Clone)]
 pub struct RequireContextOptions {
-    pub dir: String,
+    pub dir: Arc<String>,
     pub include_subdirs: bool,
     /// this is a regex (pattern, flags)
     pub filter: Regex,
@@ -3307,7 +3307,7 @@ pub fn parse_require_context(args: &Vec<JsValue>) -> Result<RequireContextOption
         bail!("require.context() only supports 1-3 arguments (mode is not supported)");
     }
 
-    let Some(dir) = args[0].as_str().map(|s| s.to_string()) else {
+    let Some(dir) = args[0].as_str().map(|s| Arc::new(s.to_string())) else {
         bail!("require.context(dir, ...) requires dir to be a constant string");
     };
 

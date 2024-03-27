@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, future::Future, pin::Pin};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub struct LockedVersions {}
 pub enum ResolveModules {
     /// when inside of path, use the list of directories to
     /// resolve inside these
-    Nested(Vc<FileSystemPath>, Vec<String>),
+    Nested(Vc<FileSystemPath>, Vec<Arc<String>>),
     /// look into that directory
     Path(Vc<FileSystemPath>),
     /// lookup versions based on lockfile in the registry filesystem
@@ -67,14 +67,14 @@ pub enum ResolveIntoPackage {
     /// [main]: https://nodejs.org/api/packages.html#main
     /// [module]: https://esbuild.github.io/api/#main-fields
     /// [browser]: https://esbuild.github.io/api/#main-fields
-    MainField { field: String },
+    MainField { field: Arc<String> },
 }
 
 // The different ways to resolve a request withing a package
 #[derive(TraceRawVcs, Hash, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub enum ResolveInPackage {
     /// Using a alias field which allows to map requests
-    AliasField(String),
+    AliasField(Arc<String>),
     /// Using the [imports] field.
     ///
     /// [imports]: https://nodejs.org/api/packages.html#imports
@@ -87,13 +87,13 @@ pub enum ResolveInPackage {
 #[turbo_tasks::value(shared)]
 #[derive(Clone)]
 pub enum ImportMapping {
-    External(Option<String>, ExternalType),
+    External(Option<Arc<String>>, ExternalType),
     /// An already resolved result that will be returned directly.
     Direct(Vc<ResolveResult>),
     /// A request alias that will be resolved first, and fall back to resolving
     /// the original request if it fails. Useful for the tsconfig.json
     /// `compilerOptions.paths` option and Next aliases.
-    PrimaryAlternative(String, Option<Vc<FileSystemPath>>),
+    PrimaryAlternative(Arc<String>, Option<Vc<FileSystemPath>>),
     Ignore,
     Empty,
     Alternatives(Vec<Vc<ImportMapping>>),
@@ -102,7 +102,7 @@ pub enum ImportMapping {
 
 impl ImportMapping {
     pub fn primary_alternatives(
-        list: Vec<String>,
+        list: Vec<Arc<String>>,
         lookup_path: Option<Vc<FileSystemPath>>,
     ) -> ImportMapping {
         if list.is_empty() {
@@ -128,13 +128,19 @@ impl AliasTemplate for Vc<ImportMapping> {
             Ok(match this {
                 ImportMapping::External(name, ty) => {
                     if let Some(name) = name {
-                        ImportMapping::External(Some(name.clone().replace('*', capture)), *ty)
+                        ImportMapping::External(
+                            Some(name.clone().replace('*', capture).into()),
+                            *ty,
+                        )
                     } else {
                         ImportMapping::External(None, *ty)
                     }
                 }
                 ImportMapping::PrimaryAlternative(name, context) => {
-                    ImportMapping::PrimaryAlternative(name.clone().replace('*', capture), *context)
+                    ImportMapping::PrimaryAlternative(
+                        name.clone().replace('*', capture).into(),
+                        *context,
+                    )
                 }
                 ImportMapping::Direct(_) | ImportMapping::Ignore | ImportMapping::Empty => {
                     this.clone()
@@ -147,7 +153,7 @@ impl AliasTemplate for Vc<ImportMapping> {
                         .await?,
                 ),
                 ImportMapping::Dynamic(replacement) => {
-                    (*replacement.replace(capture.to_string()).await?).clone()
+                    (*replacement.replace(capture.to_string().into()).await?).clone()
                 }
             }
             .cell())
@@ -219,11 +225,12 @@ impl ImportMap {
         prefix: impl Into<String> + 'a,
         context_path: Vc<FileSystemPath>,
     ) {
-        let prefix = prefix.into();
-        let wildcard_prefix = prefix.clone() + "/";
-        let wildcard_alias: String = prefix.clone() + "/*";
+        let prefix: String = prefix.into();
+        let prefix = Arc::new(prefix);
+        let wildcard_prefix = (*prefix).clone() + "/";
+        let wildcard_alias = Arc::new((*prefix).clone() + "/*");
         self.insert_exact_alias(
-            &prefix,
+            &*prefix,
             ImportMapping::PrimaryAlternative(prefix.clone(), Some(context_path)).cell(),
         );
         self.insert_wildcard_alias(
@@ -268,9 +275,9 @@ async fn import_mapping_to_result(
         ImportMapping::Direct(result) => ImportMapResult::Result(*result),
         ImportMapping::External(name, ty) => ImportMapResult::Result(
             ResolveResult::primary(if let Some(name) = name {
-                ResolveResultItem::External(name.to_string(), *ty)
+                ResolveResultItem::External(name.clone(), *ty)
             } else if let Some(request) = request.await?.request() {
-                ResolveResultItem::External(request, *ty)
+                ResolveResultItem::External(request.into(), *ty)
             } else {
                 bail!("Cannot resolve external reference without request")
             })
@@ -418,7 +425,7 @@ pub struct ResolveOptions {
     /// request first.
     pub prefer_relative: bool,
     /// The extensions that should be added to a request when resolving.
-    pub extensions: Vec<String>,
+    pub extensions: Vec<Arc<String>>,
     /// The locations where to resolve modules.
     pub modules: Vec<ResolveModules>,
     /// How to resolve packages.
@@ -426,7 +433,7 @@ pub struct ResolveOptions {
     /// How to resolve in packages.
     pub in_package: Vec<ResolveInPackage>,
     /// The default files to resolve in a folder.
-    pub default_files: Vec<String>,
+    pub default_files: Vec<Arc<String>>,
     /// An import map to use before resolving a request.
     pub import_map: Option<Vc<ImportMap>>,
     /// An import map to use when a request is otherwise unresolveable.
@@ -474,7 +481,7 @@ impl ResolveOptions {
 
     /// Overrides the extensions used for resolving
     #[turbo_tasks::function]
-    pub async fn with_extensions(self: Vc<Self>, extensions: Vec<String>) -> Result<Vc<Self>> {
+    pub async fn with_extensions(self: Vc<Self>, extensions: Vec<Arc<String>>) -> Result<Vc<Self>> {
         let mut resolve_options = self.await?.clone_value();
         resolve_options.extensions = extensions;
         Ok(resolve_options.into())
@@ -497,7 +504,7 @@ impl ResolveOptions {
 #[derive(Hash, Clone, Debug)]
 pub struct ResolveModulesOptions {
     pub modules: Vec<ResolveModules>,
-    pub extensions: Vec<String>,
+    pub extensions: Vec<Arc<String>>,
 }
 
 #[turbo_tasks::function]
@@ -514,7 +521,7 @@ pub async fn resolve_modules_options(
 
 #[turbo_tasks::value_trait]
 pub trait ImportMappingReplacement {
-    fn replace(self: Vc<Self>, capture: String) -> Vc<ImportMapping>;
+    fn replace(self: Vc<Self>, capture: Arc<String>) -> Vc<ImportMapping>;
     fn result(
         self: Vc<Self>,
         lookup_path: Vc<FileSystemPath>,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use turbo_tasks::{TryJoinIterExt, Value, Vc};
 use turbo_tasks_env::ProcessEnv;
@@ -41,8 +43,8 @@ pub fn get_client_chunking_context(
             project_path,
             server_root,
             server_root,
-            server_root.join("/_chunks".to_string()),
-            server_root.join("/_assets".to_string()),
+            server_root.join("/_chunks".to_string().into()),
+            server_root.join("/_assets".to_string().into()),
             environment,
             RuntimeType::Development,
         )
@@ -68,12 +70,12 @@ pub async fn get_client_runtime_entries(
     // functions to be available.
     if let Some(request) = enable_react_refresh {
         runtime_entries
-            .push(RuntimeEntry::Request(request, project_path.join("_".to_string())).cell())
+            .push(RuntimeEntry::Request(request, project_path.join("_".to_string().into())).cell())
     };
 
     runtime_entries.push(
         RuntimeEntry::Source(Vc::upcast(FileSource::new(embed_file_path(
-            "entry/bootstrap.ts".to_string(),
+            "entry/bootstrap.ts".to_string().into(),
         ))))
         .cell(),
     );
@@ -90,7 +92,7 @@ pub async fn create_web_entry_source(
     _env: Vc<Box<dyn ProcessEnv>>,
     eager_compile: bool,
     node_env: Vc<NodeEnv>,
-    browserslist_query: String,
+    browserslist_query: Arc<String>,
 ) -> Result<Vc<Box<dyn ContentSource>>> {
     let compile_time_info = get_client_compile_time_info(browserslist_query, node_env);
     let asset_context =
@@ -101,7 +103,7 @@ pub async fn create_web_entry_source(
 
     let runtime_entries = entries.resolve_entries(asset_context);
 
-    let origin = PlainResolveOrigin::new(asset_context, project_path.join("_".to_string()));
+    let origin = PlainResolveOrigin::new(asset_context, project_path.join("_".to_string().into()));
     let entries = entry_requests
         .into_iter()
         .map(|request| async move {
@@ -146,7 +148,7 @@ pub async fn create_web_entry_source(
         .await?;
 
     let entry_asset = Vc::upcast(DevHtmlAsset::new(
-        server_root.join("index.html".to_string()),
+        server_root.join("index.html".to_string().into()),
         entries,
     ));
 

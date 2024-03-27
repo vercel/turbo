@@ -17,6 +17,7 @@ pub(crate) mod unsupported_sass;
 use std::{
     collections::{HashMap, HashSet},
     mem::swap,
+    sync::Arc,
 };
 
 use anyhow::{bail, Result};
@@ -273,20 +274,20 @@ async fn apply_reexport_tree_shaking(
             module: final_module,
             export_name: new_export,
             ..
-        } = &*follow_reexports(module, export.clone_value()).await?;
+        } = &*follow_reexports(module, export.clone_value().into()).await?;
         let module = if let Some(new_export) = new_export {
-            if *new_export == *export {
+            if **new_export == *export {
                 Vc::upcast(*final_module)
             } else {
                 Vc::upcast(EcmascriptModuleFacadeModule::new(
                     *final_module,
-                    ModulePart::renamed_export(new_export.clone(), export.clone_value()),
+                    ModulePart::renamed_export(new_export.clone(), export.clone_value().into()),
                 ))
             }
         } else {
             Vc::upcast(EcmascriptModuleFacadeModule::new(
                 *final_module,
-                ModulePart::renamed_namespace(export.clone_value()),
+                ModulePart::renamed_namespace(export.clone_value().into()),
             ))
         };
         return Ok(module);
@@ -667,7 +668,7 @@ impl AssetContext for ModuleAssetContext {
     }
 
     #[turbo_tasks::function]
-    async fn with_transition(&self, transition: String) -> Result<Vc<Box<dyn AssetContext>>> {
+    async fn with_transition(&self, transition: Arc<String>) -> Result<Vc<Box<dyn AssetContext>>> {
         Ok(
             if let Some(transition) = self.transitions.await?.get(&transition) {
                 Vc::upcast(ModuleAssetContext::new_transition(

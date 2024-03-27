@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc};
 
 use anyhow::Result;
 use turbo_tasks::{Value, ValueToString, Vc};
@@ -39,7 +39,7 @@ impl AssetIdent {
         let root = self.path.root();
         let path = self.path.await?;
         self.path = root
-            .join(pattern.replace('*', &path.path))
+            .join(pattern.replace('*', &path.path).into())
             .resolve()
             .await?;
         Ok(())
@@ -158,7 +158,7 @@ impl AssetIdent {
     }
 
     #[turbo_tasks::function]
-    pub async fn rename_as(&self, pattern: String) -> Result<Vc<Self>> {
+    pub async fn rename_as(&self, pattern: Arc<String>) -> Result<Vc<Self>> {
         let mut this = self.clone();
         this.rename_as_ref(&pattern).await?;
         Ok(Self::new(Value::new(this)))
@@ -182,7 +182,7 @@ impl AssetIdent {
     pub async fn output_name(
         &self,
         context_path: Vc<FileSystemPath>,
-        expected_extension: String,
+        expected_extension: Arc<String>,
     ) -> Result<Vc<String>> {
         // TODO(PACK-2140): restrict character set to A–Za–z0–9-_.~'()
         // to be compatible with all operating systems + URLs.
@@ -194,7 +194,7 @@ impl AssetIdent {
         } else {
             clean_separators(&self.path.to_string().await?)
         };
-        let removed_extension = name.ends_with(&expected_extension);
+        let removed_extension = name.ends_with(&*expected_extension);
         if removed_extension {
             name.truncate(name.len() - expected_extension.len());
         }

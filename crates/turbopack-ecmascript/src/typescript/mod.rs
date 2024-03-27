@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use serde_json::Value as JsonValue;
 use turbo_tasks::{Value, ValueToString, Vc};
@@ -103,7 +105,9 @@ impl Module for TsConfigModuleAsset {
                     Some(
                         array
                             .iter()
-                            .filter_map(|name| name.as_str().map(|s| (source, s.to_string())))
+                            .filter_map(|name| {
+                                name.as_str().map(|s| (source, Arc::new(s.to_string())))
+                            })
                             .collect::<Vec<_>>(),
                     )
                 } else {
@@ -118,7 +122,7 @@ impl Module for TsConfigModuleAsset {
                 let mut current = self.source.ident().path().parent().resolve().await?;
                 loop {
                     if let DirectoryContent::Entries(entries) = &*current
-                        .join("node_modules/@types".to_string())
+                        .join("node_modules/@types".to_string().into())
                         .read_dir()
                         .await?
                     {
@@ -126,7 +130,7 @@ impl Module for TsConfigModuleAsset {
                             if name.starts_with('.') {
                                 None
                             } else {
-                                Some((self.source, name.to_string()))
+                                Some((self.source, Arc::new(name.to_string())))
                             }
                         }));
                     }

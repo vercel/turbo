@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{anyhow, bail, Result};
 use lazy_static::lazy_static;
 use swc_core::{
@@ -34,7 +36,7 @@ use crate::{
 #[turbo_tasks::value]
 pub enum ReferencedAsset {
     Some(Vc<Box<dyn EcmascriptChunkPlaceable>>),
-    External(String, ExternalType),
+    External(Arc<String>, ExternalType),
     None,
 }
 
@@ -105,7 +107,7 @@ impl EsmAssetReference {
     fn get_origin(&self) -> Vc<Box<dyn ResolveOrigin>> {
         let mut origin = self.origin;
         if let Some(transition) = self.annotations.transition() {
-            origin = origin.with_transition(transition.to_string());
+            origin = origin.with_transition(transition.to_string().into());
         }
         origin
     }
@@ -254,7 +256,7 @@ impl CodeGenerateable for EsmAssetReference {
                                 request
                             );
                         }
-                        let request = request.clone();
+                        let request = (**request).clone();
                         visitors.push(create_visitor!(visit_mut_program(program: &mut Program) {
                             let stmt = if import_externals {
                                 quote!(
@@ -287,7 +289,7 @@ impl CodeGenerateable for EsmAssetReference {
                                 request
                             );
                         }
-                        let request = request.clone();
+                        let request = (**request).clone();
                         visitors.push(create_visitor!(visit_mut_program(program: &mut Program) {
                             let stmt = quote!(
                                 "var $name = __turbopack_external_require__($id, true);" as Stmt,

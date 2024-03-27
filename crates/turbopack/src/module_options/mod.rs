@@ -3,6 +3,8 @@ pub mod module_options_context;
 pub mod module_rule;
 pub mod rule_condition;
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 pub use custom_module_type::CustomModuleType;
 pub use module_options_context::*;
@@ -26,7 +28,7 @@ use crate::{
 
 #[turbo_tasks::function]
 async fn package_import_map_from_import_mapping(
-    package_name: String,
+    package_name: Arc<String>,
     package_mapping: Vc<ImportMapping>,
 ) -> Result<Vc<ImportMap>> {
     let mut import_map = ImportMap::default();
@@ -39,7 +41,7 @@ async fn package_import_map_from_import_mapping(
 
 #[turbo_tasks::function]
 async fn package_import_map_from_context(
-    package_name: String,
+    package_name: Arc<String>,
     context_path: Vc<FileSystemPath>,
 ) -> Result<Vc<ImportMap>> {
     let mut import_map = ImportMap::default();
@@ -395,9 +397,12 @@ impl ModuleOptions {
                     .context("execution_context is required for the postcss_transform")?;
 
                 let import_map = if let Some(postcss_package) = options.postcss_package {
-                    package_import_map_from_import_mapping("postcss".to_string(), postcss_package)
+                    package_import_map_from_import_mapping(
+                        "postcss".to_string().into(),
+                        postcss_package,
+                    )
                 } else {
-                    package_import_map_from_context("postcss".to_string(), path)
+                    package_import_map_from_context("postcss".to_string().into(), path)
                 };
 
                 rules.push(ModuleRule::new(
@@ -408,7 +413,7 @@ impl ModuleOptions {
                                 execution_context,
                                 Some(import_map),
                                 None,
-                                "postcss".to_string(),
+                                "postcss".to_string().into(),
                             ),
                             execution_context,
                             options.config_location,
@@ -524,23 +529,23 @@ impl ModuleOptions {
                 webpack_loaders_options.loader_runner_package
             {
                 package_import_map_from_import_mapping(
-                    "loader-runner".to_string(),
+                    "loader-runner".to_string().into(),
                     loader_runner_package,
                 )
             } else {
-                package_import_map_from_context("loader-runner".to_string(), path)
+                package_import_map_from_context("loader-runner".to_string().into(), path)
             };
             for (glob, rule) in webpack_loaders_options.rules.await?.iter() {
                 rules.push(ModuleRule::new(
                     ModuleRuleCondition::All(vec![
                         if !glob.contains('/') {
                             ModuleRuleCondition::ResourceBasePathGlob(
-                                Glob::new(glob.clone()).await?,
+                                Glob::new(glob.clone().into()).await?,
                             )
                         } else {
                             ModuleRuleCondition::ResourcePathGlob {
                                 base: execution_context.project_path().await?,
-                                glob: Glob::new(glob.clone()).await?,
+                                glob: Glob::new(glob.clone().into()).await?,
                             }
                         },
                         ModuleRuleCondition::not(ModuleRuleCondition::ResourceIsVirtualSource),
@@ -558,7 +563,7 @@ impl ModuleOptions {
                                     execution_context,
                                     Some(import_map),
                                     None,
-                                    "webpack_loaders".to_string(),
+                                    "webpack_loaders".to_string().into(),
                                 ),
                                 execution_context,
                                 rule.loaders,

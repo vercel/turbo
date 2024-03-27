@@ -31,7 +31,10 @@ impl UnsupportedSassResolvePlugin {
 impl ResolvePlugin for UnsupportedSassResolvePlugin {
     #[turbo_tasks::function]
     fn after_resolve_condition(&self) -> Vc<ResolvePluginCondition> {
-        ResolvePluginCondition::new(self.root.root(), Glob::new("**/*.{sass,scss}".to_string()))
+        ResolvePluginCondition::new(
+            self.root.root(),
+            Glob::new("**/*.{sass,scss}".to_string().into()),
+        )
     }
 
     #[turbo_tasks::function]

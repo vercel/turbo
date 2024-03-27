@@ -60,7 +60,7 @@ impl ContextCondition {
             ContextCondition::InDirectory(dir) => Ok(path.path.starts_with(&format!("{dir}/"))
                 || path.path.contains(&format!("/{dir}/"))
                 || path.path.ends_with(&format!("/{dir}"))
-                || path.path == *dir),
+                || **path.path == *dir),
         }
     }
 }

@@ -327,7 +327,7 @@ pub enum ConcreteTaskInput {
     TaskOutput(TaskId),
     TaskCell(TaskId, CellId),
     List(Vec<ConcreteTaskInput>),
-    String(String),
+    String(Arc<String>),
     Bool(bool),
     Usize(usize),
     I8(i8),

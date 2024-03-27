@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::Path, sync::Arc};
 
 use anyhow::{Context, Result};
 use dunce::canonicalize;
@@ -8,29 +8,26 @@ use crate::{DiskFileSystem, File, FileContent, FileSystem};
 
 #[turbo_tasks::function]
 pub async fn content_from_relative_path(
-    package_path: String,
-    path: String,
+    package_path: Arc<String>,
+    path: Arc<String>,
 ) -> Result<Vc<FileContent>> {
-    let package_path = PathBuf::from(package_path);
-    let resolved_path = package_path.join(path);
+    let package_path = Path::new(&**package_path);
+    let resolved_path = package_path.join(&**path);
     let resolved_path =
         canonicalize(&resolved_path).context("failed to canonicalize embedded file path")?;
     let root_path = resolved_path.parent().unwrap();
     let path = resolved_path.file_name().unwrap().to_str().unwrap();
 
-    let disk_fs = DiskFileSystem::new(
-        root_path.to_string_lossy().to_string(),
-        root_path.to_string_lossy().to_string(),
-        vec![],
-    );
+    let root_path_str = Arc::new(root_path.to_string_lossy().to_string());
+    let disk_fs = DiskFileSystem::new(root_path_str.clone(), root_path_str, vec![]);
     disk_fs.await?.start_watching()?;
 
-    let fs_path = disk_fs.root().join(path.to_string());
+    let fs_path = disk_fs.root().join(path.to_string().into());
     Ok(fs_path.read())
 }
 
 #[turbo_tasks::function]
-pub async fn content_from_str(string: String) -> Result<Vc<FileContent>> {
+pub async fn content_from_str(string: Arc<String>) -> Result<Vc<FileContent>> {
     Ok(File::from(string).into())
 }
 
@@ -57,7 +54,9 @@ macro_rules! embed_file {
 macro_rules! embed_file {
     ($path:expr) => {
         turbo_tasks_fs::embed::content_from_str(
-            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path)).to_string(),
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path))
+                .to_string()
+                .into(),
         )
     };
 }

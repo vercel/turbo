@@ -196,7 +196,7 @@ impl Args {
 }
 
 async fn create_fs(name: &str, root: &str, watch: bool) -> Result<Vc<Box<dyn FileSystem>>> {
-    let fs = DiskFileSystem::new(name.to_string(), root.to_string(), vec![]);
+    let fs = DiskFileSystem::new(name.to_string().into(), root.to_string().into(), vec![]);
     if watch {
         fs.await?.start_watching()?;
     } else {
@@ -240,17 +240,18 @@ async fn add_glob_results(
 #[turbo_tasks::function]
 async fn input_to_modules(
     fs: Vc<Box<dyn FileSystem>>,
-    input: Vec<String>,
+    input: Vec<Arc<String>>,
     exact: bool,
-    process_cwd: Option<String>,
-    context_directory: String,
+    process_cwd: Option<Arc<String>>,
+    context_directory: Arc<String>,
     module_options: TransientInstance<ModuleOptionsContext>,
     resolve_options: TransientInstance<ResolveOptionsContext>,
 ) -> Result<Vc<Modules>> {
     let root = fs.root();
     let process_cwd = process_cwd
         .clone()
-        .map(|p| format!("/ROOT{}", p.trim_start_matches(&context_directory)));
+        .map(|p| format!("/ROOT{}", p.trim_start_matches(&*context_directory)))
+        .map(Arc::new);
 
     let asset_context: Vc<Box<dyn AssetContext>> = Vc::upcast(create_module_asset(
         root,
@@ -291,7 +292,7 @@ fn process_context(dir: &Path, context_directory: Option<&String>) -> Result<Str
         .to_string())
 }
 
-fn make_relative_path(dir: &Path, context_directory: &str, input: &str) -> Result<String> {
+fn make_relative_path(dir: &Path, context_directory: &str, input: &str) -> Result<Arc<String>> {
     let mut input = PathBuf::from(input);
     if !input.is_absolute() {
         input = dir.join(input);
@@ -307,10 +308,15 @@ fn make_relative_path(dir: &Path, context_directory: &str, input: &str) -> Resul
     Ok(input
         .to_str()
         .ok_or_else(|| anyhow!("input contains invalid characters"))?
-        .replace('\\', "/"))
+        .replace('\\', "/")
+        .into())
 }
 
-fn process_input(dir: &Path, context_directory: &str, input: &[String]) -> Result<Vec<String>> {
+fn process_input(
+    dir: &Path,
+    context_directory: &str,
+    input: &[String],
+) -> Result<Vec<Arc<String>>> {
     input
         .iter()
         .map(|input| make_relative_path(dir, context_directory, input))
@@ -561,8 +567,8 @@ async fn main_operation(
                 fs,
                 input,
                 exact,
-                process_cwd.clone(),
-                context_directory,
+                process_cwd.clone().map(Arc::new),
+                context_directory.into(),
                 module_options,
                 resolve_options,
             )
@@ -587,8 +593,8 @@ async fn main_operation(
                 fs,
                 input,
                 exact,
-                process_cwd.clone(),
-                context_directory,
+                process_cwd.clone().map(Arc::new),
+                context_directory.into(),
                 module_options,
                 resolve_options,
             )
@@ -597,7 +603,7 @@ async fn main_operation(
             {
                 let nft_asset = NftJsonAsset::new(*module);
                 let path = nft_asset.ident().path().await?.path.clone();
-                output_nft_assets.push(path);
+                output_nft_assets.push((*path).clone());
                 emits.push(emit_asset(Vc::upcast(nft_asset)));
             }
             // Wait for all files to be emitted
@@ -620,8 +626,8 @@ async fn main_operation(
                 fs,
                 input,
                 exact,
-                process_cwd.clone(),
-                context_directory,
+                process_cwd.clone().map(Arc::new),
+                context_directory.into(),
                 module_options,
                 resolve_options,
             )
@@ -644,13 +650,13 @@ async fn main_operation(
 #[turbo_tasks::function]
 async fn create_module_asset(
     root: Vc<FileSystemPath>,
-    process_cwd: Option<String>,
+    process_cwd: Option<Arc<String>>,
     module_options: TransientInstance<ModuleOptionsContext>,
     resolve_options: TransientInstance<ResolveOptionsContext>,
 ) -> Result<Vc<ModuleAssetContext>> {
     let env = Environment::new(Value::new(ExecutionEnvironment::NodeJsLambda(
         NodeJsEnvironment {
-            cwd: Vc::cell(process_cwd),
+            cwd: Vc::cell(process_cwd.as_deref().cloned()),
             ..Default::default()
         }
         .into(),
@@ -659,12 +665,12 @@ async fn create_module_asset(
     let glob_mappings = vec![
         (
             root,
-            Glob::new("**/*/next/dist/server/next.js".to_string()),
+            Glob::new("**/*/next/dist/server/next.js".to_string().into()),
             ImportMapping::Ignore.into(),
         ),
         (
             root,
-            Glob::new("**/*/next/dist/bin/next".to_string()),
+            Glob::new("**/*/next/dist/bin/next".to_string().into()),
             ImportMapping::Ignore.into(),
         ),
     ];

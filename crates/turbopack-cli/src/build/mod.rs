@@ -111,8 +111,8 @@ impl TurbopackBuildBuilder {
     pub async fn build(self) -> Result<()> {
         let task = self.turbo_tasks.spawn_once_task::<(), _>(async move {
             let build_result = build_internal(
-                self.project_dir.clone(),
-                self.root_dir,
+                self.project_dir.clone().into(),
+                self.root_dir.into(),
                 EntryRequests(
                     self.entry_requests
                         .iter()
@@ -121,7 +121,7 @@ impl TurbopackBuildBuilder {
                         .collect(),
                 )
                 .cell(),
-                self.browserslist_query,
+                self.browserslist_query.into(),
                 self.minify_type,
             );
 
@@ -157,10 +157,10 @@ impl TurbopackBuildBuilder {
 
 #[turbo_tasks::function]
 async fn build_internal(
-    project_dir: String,
-    root_dir: String,
+    project_dir: Arc<String>,
+    root_dir: Arc<String>,
     entry_requests: Vc<EntryRequests>,
-    browserslist_query: String,
+    browserslist_query: Arc<String>,
     minify_type: MinifyType,
 ) -> Result<Vc<()>> {
     let env = Environment::new(Value::new(ExecutionEnvironment::Browser(
@@ -168,19 +168,19 @@ async fn build_internal(
             dom: true,
             web_worker: false,
             service_worker: false,
-            browserslist_query: browserslist_query.clone(),
+            browserslist_query: browserslist_query.to_string(),
         }
         .into(),
     )));
     let output_fs = output_fs(project_dir.clone());
     let project_fs = project_fs(root_dir.clone());
-    let project_relative = project_dir.strip_prefix(&root_dir).unwrap();
+    let project_relative = project_dir.strip_prefix(&*root_dir).unwrap();
     let project_relative = project_relative
         .strip_prefix(MAIN_SEPARATOR)
         .unwrap_or(project_relative)
         .replace(MAIN_SEPARATOR, "/");
-    let project_path = project_fs.root().join(project_relative);
-    let build_output_root = output_fs.root().join("dist".to_string());
+    let project_path = project_fs.root().join(project_relative.into());
+    let build_output_root = output_fs.root().join("dist".to_string().into());
 
     let node_env = NodeEnv::Production.cell();
 
@@ -225,7 +225,8 @@ async fn build_internal(
         .await?)
         .to_vec();
 
-    let origin = PlainResolveOrigin::new(asset_context, output_fs.root().join("_".to_string()));
+    let origin =
+        PlainResolveOrigin::new(asset_context, output_fs.root().join("_".to_string().into()));
     let project_dir = &project_dir;
     let entries = entry_requests
         .into_iter()
@@ -268,9 +269,10 @@ async fn build_internal(
                                             .await?
                                             .as_deref()
                                             .unwrap()
-                                            .to_string(),
+                                            .to_string()
+                                            .into(),
                                     )
-                                    .with_extension("entry.js".to_string()),
+                                    .with_extension("entry.js".to_string().into()),
                                 Vc::upcast(ecmascript),
                                 EvaluatableAssets::one(Vc::upcast(ecmascript)),
                                 Value::new(AvailabilityInfo::Root),
@@ -335,7 +337,7 @@ pub async fn build(args: &BuildArguments) -> Result<()> {
         .show_all(args.common.show_all);
 
     for entry in normalize_entries(&args.common.entries) {
-        builder = builder.entry_request(EntryRequest::Relative(entry));
+        builder = builder.entry_request(EntryRequest::Relative(entry.into()));
     }
 
     builder.build().await?;

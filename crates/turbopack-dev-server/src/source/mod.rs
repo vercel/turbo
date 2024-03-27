@@ -12,7 +12,7 @@ pub mod router;
 pub mod static_assets;
 pub mod wrapping_source;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::Result;
 use futures::{stream::Stream as StreamTrait, TryStreamExt};
@@ -36,7 +36,7 @@ pub struct ProxyResult {
     /// The HTTP status code to return.
     pub status: u16,
     /// Headers arranged as contiguous (name, value) pairs.
-    pub headers: Vec<(String, String)>,
+    pub headers: Vec<(Arc<String>, Arc<String>)>,
     /// The body to return.
     pub body: Body,
 }
@@ -71,7 +71,7 @@ pub trait GetContentSourceContent {
     /// Get the content
     fn get(
         self: Vc<Self>,
-        path: String,
+        path: Arc<String>,
         data: Value<ContentSourceData>,
     ) -> Vc<ContentSourceContent>;
 }
@@ -111,7 +111,7 @@ impl GetContentSourceContent for ContentSourceContent {
     #[turbo_tasks::function]
     fn get(
         self: Vc<Self>,
-        _path: String,
+        _path: Arc<String>,
         _data: Value<ContentSourceData>,
     ) -> Vc<ContentSourceContent> {
         self
@@ -158,12 +158,12 @@ impl ContentSourceContent {
 
 /// A list of headers arranged as contiguous (name, value) pairs.
 #[turbo_tasks::value(transparent)]
-pub struct HeaderList(Vec<(String, String)>);
+pub struct HeaderList(Vec<(Arc<String>, Arc<String>)>);
 
 #[turbo_tasks::value_impl]
 impl HeaderList {
     #[turbo_tasks::function]
-    pub fn new(headers: Vec<(String, String)>) -> Vc<Self> {
+    pub fn new(headers: Vec<(Arc<String>, Arc<String>)>) -> Vc<Self> {
         HeaderList(headers).cell()
     }
 
@@ -423,7 +423,7 @@ pub trait ContentSourceExt: Send {
     fn issue_file_path(
         self: Vc<Self>,
         file_path: Vc<FileSystemPath>,
-        description: String,
+        description: Arc<String>,
     ) -> Vc<Box<dyn ContentSource>>;
 }
 
@@ -434,7 +434,7 @@ where
     fn issue_file_path(
         self: Vc<Self>,
         file_path: Vc<FileSystemPath>,
-        description: String,
+        description: Arc<String>,
     ) -> Vc<Box<dyn ContentSource>> {
         Vc::upcast(IssueFilePathContentSource::new_file_path(
             file_path,
@@ -480,7 +480,7 @@ pub enum RewriteType {
     Location {
         /// The new path and query used to lookup content. This _does not_ need
         /// to be the original path or query.
-        path_and_query: String,
+        path_and_query: Arc<String>,
     },
     ContentSource {
         /// [Vc<Box<dyn ContentSource>>]s from which to restart the lookup
@@ -489,7 +489,7 @@ pub enum RewriteType {
         source: Vc<Box<dyn ContentSource>>,
         /// The new path and query used to lookup content. This _does not_ need
         /// to be the original path or query.
-        path_and_query: String,
+        path_and_query: Arc<String>,
     },
     Sources {
         /// [GetContentSourceContent]s from which to restart the lookup
@@ -520,7 +520,7 @@ pub struct RewriteBuilder {
 }
 
 impl RewriteBuilder {
-    pub fn new(path_and_query: String) -> Self {
+    pub fn new(path_and_query: Arc<String>) -> Self {
         Self {
             rewrite: Rewrite {
                 ty: RewriteType::Location { path_and_query },
@@ -532,7 +532,7 @@ impl RewriteBuilder {
 
     pub fn new_source_with_path_and_query(
         source: Vc<Box<dyn ContentSource>>,
-        path_and_query: String,
+        path_and_query: Arc<String>,
     ) -> Self {
         Self {
             rewrite: Rewrite {

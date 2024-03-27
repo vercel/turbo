@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Result;
 use turbo_tasks::{Value, Vc};
@@ -61,7 +61,7 @@ pub async fn get_client_import_map(project_path: Vc<FileSystemPath>) -> Result<V
     import_map.insert_wildcard_alias(
         "@vercel/turbopack-ecmascript-runtime/",
         ImportMapping::PrimaryAlternative(
-            "./*".to_string(),
+            "./*".to_string().into(),
             Some(turbopack_ecmascript_runtime::embed_fs().root()),
         )
         .cell(),
@@ -77,7 +77,7 @@ pub async fn get_client_resolve_options_context(
     let next_client_import_map = get_client_import_map(project_path);
     let module_options_context = ResolveOptionsContext {
         enable_node_modules: Some(project_path.root().resolve().await?),
-        custom_conditions: vec!["development".to_string()],
+        custom_conditions: vec!["development".to_string().into()],
         import_map: Some(next_client_import_map),
         browser: true,
         module: true,
@@ -206,7 +206,7 @@ fn client_defines(node_env: &NodeEnv) -> Vc<CompileTimeDefines> {
 
 #[turbo_tasks::function]
 pub async fn get_client_compile_time_info(
-    browserslist_query: String,
+    browserslist_query: Arc<String>,
     node_env: Vc<NodeEnv>,
 ) -> Result<Vc<CompileTimeInfo>> {
     Ok(
@@ -215,7 +215,7 @@ pub async fn get_client_compile_time_info(
                 dom: true,
                 web_worker: false,
                 service_worker: false,
-                browserslist_query,
+                browserslist_query: browserslist_query.to_string(),
             }
             .into(),
         ))))

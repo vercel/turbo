@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use turbo_tasks::{Upcast, Value, Vc};
 use turbo_tasks_fs::FileSystemPath;
@@ -44,7 +46,7 @@ pub trait ResolveOriginExt: Send {
     fn resolve_options(self: Vc<Self>, reference_type: Value<ReferenceType>) -> Vc<ResolveOptions>;
 
     /// Adds a transition that is used for resolved assets.
-    fn with_transition(self: Vc<Self>, transition: String) -> Vc<Box<dyn ResolveOrigin>>;
+    fn with_transition(self: Vc<Self>, transition: Arc<String>) -> Vc<Box<dyn ResolveOrigin>>;
 }
 
 impl<T> ResolveOriginExt for T
@@ -65,7 +67,7 @@ where
             .resolve_options(self.origin_path(), reference_type)
     }
 
-    fn with_transition(self: Vc<Self>, transition: String) -> Vc<Box<dyn ResolveOrigin>> {
+    fn with_transition(self: Vc<Self>, transition: Arc<String>) -> Vc<Box<dyn ResolveOrigin>> {
         Vc::upcast(
             ResolveOriginWithTransition {
                 previous: Vc::upcast(self),
@@ -137,7 +139,7 @@ impl ResolveOrigin for PlainResolveOrigin {
 #[turbo_tasks::value]
 struct ResolveOriginWithTransition {
     previous: Vc<Box<dyn ResolveOrigin>>,
-    transition: String,
+    transition: Arc<String>,
 }
 
 #[turbo_tasks::value_impl]

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{bail, Result};
 use turbo_tasks::{Value, Vc};
 use turbo_tasks_fs::FileSystemPath;
@@ -75,5 +77,5 @@ pub trait AssetContext {
     ) -> Vc<ModuleResolveResult>;
 
     /// Gets a new AssetContext with the transition applied.
-    fn with_transition(self: Vc<Self>, transition: String) -> Vc<Box<dyn AssetContext>>;
+    fn with_transition(self: Vc<Self>, transition: Arc<String>) -> Vc<Box<dyn AssetContext>>;
 }

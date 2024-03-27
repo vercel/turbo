@@ -111,8 +111,10 @@ async fn proxy_error(
     let status_code = 500;
     let body = error_html(
         status_code,
-        "An error occurred while proxying the request to Node.js".to_string(),
-        format!("{message}\n\n{}", details.join("\n")),
+        "An error occurred while proxying the request to Node.js"
+            .to_string()
+            .into(),
+        format!("{message}\n\n{}", details.join("\n")).into(),
     )
     .await?
     .clone_value();
@@ -289,8 +291,8 @@ async fn render_stream_internal(
                 yield RenderItem::Headers(ResponseHeaders {
                     status,
                     headers: vec![(
-                        "content-type".to_string(),
-                        "text/html; charset=utf-8".to_string(),
+                        "content-type".to_string().into(),
+                        "text/html; charset=utf-8".to_string().into(),
                     )],
                 });
                 yield RenderItem::BodyChunk(body.into());

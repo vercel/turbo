@@ -31,7 +31,7 @@ impl TaskInput for ConcreteTaskInput {
     }
 }
 
-impl TaskInput for String {
+impl TaskInput for Arc<String> {
     fn try_from_concrete(input: &ConcreteTaskInput) -> Result<Self> {
         match input {
             ConcreteTaskInput::String(s) => Ok(s.clone()),
@@ -407,9 +407,9 @@ mod tests {
     #[test]
     fn test_multiple_unnamed_fields() -> Result<()> {
         #[derive(Clone, TaskInput, Eq, PartialEq, Debug)]
-        struct MultipleUnnamedFields(u32, String);
+        struct MultipleUnnamedFields(u32, Arc<String>);
 
-        test_conversion!(MultipleUnnamedFields(42, "42".into()));
+        test_conversion!(MultipleUnnamedFields(42, "42".to_string().into()));
         Ok(())
     }
 
@@ -429,12 +429,12 @@ mod tests {
         #[derive(Clone, TaskInput, Eq, PartialEq, Debug)]
         struct MultipleNamedFields {
             named: u32,
-            other: String,
+            other: Arc<String>,
         }
 
         test_conversion!(MultipleNamedFields {
             named: 42,
-            other: "42".into()
+            other: "42".to_string().into()
         });
         Ok(())
     }
@@ -445,7 +445,7 @@ mod tests {
         struct GenericField<T>(T);
 
         test_conversion!(GenericField(42));
-        test_conversion!(GenericField("42".to_string()));
+        test_conversion!(GenericField(Arc::new("42".to_string())));
         Ok(())
     }
 
@@ -486,15 +486,15 @@ mod tests {
         Variant1,
         Variant2(u32),
         Variant3 { named: u32 },
-        Variant4(u32, String),
-        Variant5 { named: u32, other: String },
+        Variant4(u32, Arc<String>),
+        Variant5 { named: u32, other: Arc<String> },
     }
 
     #[test]
     fn test_multiple_variants_and_heterogeneous_fields() -> Result<()> {
         test_conversion!(MultipleVariantsAndHeterogeneousFields::Variant5 {
             named: 42,
-            other: "42".into()
+            other: Arc::new("42".into())
         });
         Ok(())
     }
@@ -505,19 +505,24 @@ mod tests {
         enum NestedVariants {
             Variant1,
             Variant2(MultipleVariantsAndHeterogeneousFields),
-            Variant3 { named: OneVariant },
-            Variant4(OneVariant, String),
-            Variant5 { named: OneVariant, other: String },
+            Variant3 {
+                named: OneVariant,
+            },
+            Variant4(OneVariant, Arc<String>),
+            Variant5 {
+                named: OneVariant,
+                other: Arc<String>,
+            },
         }
 
         test_conversion!(NestedVariants::Variant5 {
             named: OneVariant::Variant,
-            other: "42".into()
+            other: "42".to_string().into()
         });
         test_conversion!(NestedVariants::Variant2(
             MultipleVariantsAndHeterogeneousFields::Variant5 {
                 named: 42,
-                other: "42".into()
+                other: "42".to_string().into()
             }
         ));
         Ok(())

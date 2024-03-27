@@ -202,7 +202,7 @@ impl RequireContextMap {
 #[derive(Hash, Debug)]
 pub struct RequireContextAssetReference {
     pub inner: Vc<RequireContextAsset>,
-    pub dir: String,
+    pub dir: Arc<String>,
     pub include_subdirs: bool,
 
     pub path: Vc<AstPath>,
@@ -216,7 +216,7 @@ impl RequireContextAssetReference {
     pub fn new(
         source: Vc<Box<dyn Source>>,
         origin: Vc<Box<dyn ResolveOrigin>>,
-        dir: String,
+        dir: Arc<String>,
         include_subdirs: bool,
         filter: Vc<Regex>,
         path: Vc<AstPath>,
@@ -330,12 +330,12 @@ pub struct RequireContextAsset {
     origin: Vc<Box<dyn ResolveOrigin>>,
     map: Vc<RequireContextMap>,
 
-    dir: String,
+    dir: Arc<String>,
     include_subdirs: bool,
 }
 
 #[turbo_tasks::function]
-fn modifier(dir: String, include_subdirs: bool) -> Vc<String> {
+fn modifier(dir: Arc<String>, include_subdirs: bool) -> Vc<String> {
     Vc::cell(format!(
         "require.context {}/{}",
         dir,

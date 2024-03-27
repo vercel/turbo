@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -48,9 +48,9 @@ pub enum EcmaScriptModulesReferenceSubType {
 #[derive(Debug)]
 #[turbo_tasks::value(shared)]
 pub struct ImportAttributes {
-    pub layer: Option<String>,
-    pub supports: Option<String>,
-    pub media: Option<String>,
+    pub layer: Option<Arc<String>>,
+    pub supports: Option<Arc<String>>,
+    pub media: Option<Arc<String>>,
 }
 
 /// The accumulated list of conditions that should be applied to this module
@@ -58,15 +58,19 @@ pub struct ImportAttributes {
 #[derive(Debug, Default)]
 #[turbo_tasks::value]
 pub struct ImportContext {
-    pub layers: Vec<String>,
-    pub supports: Vec<String>,
-    pub media: Vec<String>,
+    pub layers: Vec<Arc<String>>,
+    pub supports: Vec<Arc<String>>,
+    pub media: Vec<Arc<String>>,
 }
 
 #[turbo_tasks::value_impl]
 impl ImportContext {
     #[turbo_tasks::function]
-    pub fn new(layers: Vec<String>, media: Vec<String>, supports: Vec<String>) -> Vc<Self> {
+    pub fn new(
+        layers: Vec<Arc<String>>,
+        media: Vec<Arc<String>>,
+        supports: Vec<Arc<String>>,
+    ) -> Vc<Self> {
         ImportContext {
             layers,
             media,
@@ -78,9 +82,9 @@ impl ImportContext {
     #[turbo_tasks::function]
     pub async fn add_attributes(
         self: Vc<Self>,
-        attr_layer: Option<String>,
-        attr_media: Option<String>,
-        attr_supports: Option<String>,
+        attr_layer: Option<Arc<String>>,
+        attr_media: Option<Arc<String>>,
+        attr_supports: Option<Arc<String>>,
     ) -> Result<Vc<Self>> {
         let this = &*self.await?;
 
@@ -88,7 +92,7 @@ impl ImportContext {
             let mut layers = this.layers.clone();
             if let Some(attr_layer) = attr_layer {
                 if !layers.contains(&attr_layer) {
-                    layers.push(attr_layer.to_owned());
+                    layers.push(attr_layer.clone());
                 }
             }
             layers
@@ -98,7 +102,7 @@ impl ImportContext {
             let mut media = this.media.clone();
             if let Some(attr_media) = attr_media {
                 if !media.contains(&attr_media) {
-                    media.push(attr_media.to_owned());
+                    media.push(attr_media.clone());
                 }
             }
             media
@@ -108,7 +112,7 @@ impl ImportContext {
             let mut supports = this.supports.clone();
             if let Some(attr_supports) = attr_supports {
                 if !supports.contains(&attr_supports) {
-                    supports.push(attr_supports.to_owned());
+                    supports.push(attr_supports.clone());
                 }
             }
             supports

@@ -197,15 +197,15 @@ impl EcmascriptChunkPlaceable for EcmascriptModuleFacadeModule {
                     );
                 };
                 let esm_exports = esm_exports.await?;
-                if esm_exports.exports.keys().any(|name| name == "default") {
+                if esm_exports.exports.keys().any(|name| &**name == "default") {
                     exports.insert(
-                        "default".to_string(),
+                        "default".to_string().into(),
                         EsmExport::ImportedBinding(
                             Vc::upcast(EcmascriptModulePartReference::new_part(
                                 self.module,
                                 ModulePart::exports(),
                             )),
-                            "default".to_string(),
+                            "default".to_string().into(),
                         ),
                     );
                 }
@@ -220,16 +220,16 @@ impl EcmascriptChunkPlaceable for EcmascriptModuleFacadeModule {
             } => {
                 let original_export = original_export.await?;
                 exports.insert(
-                    export.await?.clone_value(),
+                    export.await?.clone_value().into(),
                     EsmExport::ImportedBinding(
                         Vc::upcast(EcmascriptModulePartReference::new(self.module)),
-                        original_export.clone_value(),
+                        original_export.clone_value().into(),
                     ),
                 );
             }
             ModulePart::RenamedNamespace { export } => {
                 exports.insert(
-                    export.await?.clone_value(),
+                    export.await?.clone_value().into(),
                     EsmExport::ImportedNamespace(Vc::upcast(EcmascriptModulePartReference::new(
                         self.module,
                     ))),

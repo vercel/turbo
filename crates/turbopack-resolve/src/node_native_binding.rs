@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
@@ -108,7 +110,7 @@ pub async fn resolve_node_pre_gyp_files(
                 let config_file_dir = config_file_path.parent();
                 let node_pre_gyp_config: NodePreGypConfigJson =
                     parse_json_rope_with_source_context(config_file.content())?;
-                let mut sources: IndexMap<String, Vc<Box<dyn Source>>> = IndexMap::new();
+                let mut sources: IndexMap<Arc<String>, Vc<Box<dyn Source>>> = IndexMap::new();
                 for version in node_pre_gyp_config.binary.napi_versions.iter() {
                     let native_binding_path = NAPI_VERSION_TEMPLATE.replace(
                         node_pre_gyp_config.binary.module_path.as_str(),
@@ -130,9 +132,9 @@ pub async fn resolve_node_pre_gyp_files(
                     );
 
                     for (key, entry) in config_file_dir
-                        .join(native_binding_path.to_string())
+                        .join(native_binding_path.to_string().into())
                         .read_glob(
-                            Glob::new(format!("*.{}", compile_target.dylib_ext())),
+                            Glob::new(format!("*.{}", compile_target.dylib_ext()).into()),
                             false,
                         )
                         .await?
@@ -143,16 +145,16 @@ pub async fn resolve_node_pre_gyp_files(
                             entry
                         {
                             sources.insert(
-                                format!("{native_binding_path}/{key}"),
+                                format!("{native_binding_path}/{key}").into(),
                                 Vc::upcast(FileSource::new(dylib)),
                             );
                         }
                     }
 
-                    let node_file_path = format!(
+                    let node_file_path = Arc::new(format!(
                         "{}/{}.node",
                         native_binding_path, node_pre_gyp_config.binary.module_name
-                    );
+                    ));
                     let resolved_file_vc = config_file_dir.join(node_file_path.clone());
                     sources.insert(
                         node_file_path,
@@ -162,8 +164,8 @@ pub async fn resolve_node_pre_gyp_files(
                 for (key, entry) in config_file_dir
                     // TODO
                     // read the dependencies path from `bindings.gyp`
-                    .join("deps/lib".to_string())
-                    .read_glob(Glob::new("*".to_string()), false)
+                    .join("deps/lib".to_string().into())
+                    .read_glob(Glob::new("*".to_string().into()), false)
                     .await?
                     .results
                     .iter()
@@ -171,7 +173,7 @@ pub async fn resolve_node_pre_gyp_files(
                     match *entry {
                         DirectoryEntry::File(dylib) => {
                             sources.insert(
-                                format!("deps/lib/{key}"),
+                                format!("deps/lib/{key}").into(),
                                 Vc::upcast(FileSource::new(dylib)),
                             );
                         }
@@ -181,7 +183,7 @@ pub async fn resolve_node_pre_gyp_files(
                                 affecting_paths.push(symlink);
                             }
                             sources.insert(
-                                format!("deps/lib/{key}"),
+                                format!("deps/lib/{key}").into(),
                                 Vc::upcast(FileSource::new(realpath_with_links.path)),
                             );
                         }
@@ -263,11 +265,11 @@ pub async fn resolve_node_gyp_build_files(
                 if let Some(captured) =
                     GYP_BUILD_TARGET_NAME.captures(&config_file.content().to_str()?)
                 {
-                    let mut resolved: IndexMap<String, Vc<Box<dyn Source>>> =
+                    let mut resolved: IndexMap<Arc<String>, Vc<Box<dyn Source>>> =
                         IndexMap::with_capacity(captured.len());
                     for found in captured.iter().skip(1).flatten() {
                         let name = found.as_str();
-                        let target_path = context_dir.join("build/Release".to_string());
+                        let target_path = context_dir.join("build/Release".to_string().into());
                         let resolved_prebuilt_file = resolve_raw(
                             target_path,
                             Pattern::new(Pattern::Constant(format!("{}.node", name))),
@@ -278,7 +280,7 @@ pub async fn resolve_node_gyp_build_files(
                             resolved_prebuilt_file.primary.first()
                         {
                             resolved.insert(
-                                format!("build/Release/{name}.node"),
+                                format!("build/Release/{name}.node").into(),
                                 source.resolve().await?,
                             );
                             merged_affecting_sources
@@ -318,13 +320,13 @@ pub async fn resolve_node_gyp_build_files(
 #[derive(Hash, Clone, Debug)]
 pub struct NodeBindingsReference {
     pub context_dir: Vc<FileSystemPath>,
-    pub file_name: String,
+    pub file_name: Arc<String>,
 }
 
 #[turbo_tasks::value_impl]
 impl NodeBindingsReference {
     #[turbo_tasks::function]
-    pub fn new(context_dir: Vc<FileSystemPath>, file_name: String) -> Vc<Self> {
+    pub fn new(context_dir: Vc<FileSystemPath>, file_name: Arc<String>) -> Vc<Self> {
         Self::cell(NodeBindingsReference {
             context_dir,
             file_name,
@@ -354,7 +356,7 @@ impl ValueToString for NodeBindingsReference {
 #[turbo_tasks::function]
 pub async fn resolve_node_bindings_files(
     context_dir: Vc<FileSystemPath>,
-    file_name: String,
+    file_name: Arc<String>,
 ) -> Result<Vc<ModuleResolveResult>> {
     lazy_static! {
         static ref BINDINGS_TRY: [&'static str; 5] = [
@@ -390,7 +392,7 @@ pub async fn resolve_node_bindings_files(
         root_context_dir = parent;
     }
 
-    let try_path = |sub_path: String| async move {
+    let try_path = |sub_path: Arc<String>| async move {
         let path = root_context_dir.join(sub_path.clone());
         Ok(
             if matches!(*path.get_type().await?, FileSystemEntryType::File) {
@@ -406,7 +408,7 @@ pub async fn resolve_node_bindings_files(
 
     let modules = BINDINGS_TRY
         .iter()
-        .map(|try_dir| try_path(format!("{}/{}", try_dir, &file_name)))
+        .map(|try_dir| try_path(format!("{}/{}", try_dir, &file_name).into()))
         .try_flat_join()
         .await?;
     Ok(ModuleResolveResult::modules(modules).cell())

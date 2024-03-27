@@ -52,8 +52,8 @@ pub(crate) mod web_entry_source;
 
 pub struct TurbopackDevServerBuilder {
     turbo_tasks: Arc<TurboTasks<MemoryBackend>>,
-    project_dir: String,
-    root_dir: String,
+    project_dir: Arc<String>,
+    root_dir: Arc<String>,
     entry_requests: Vec<EntryRequest>,
     eager_compile: bool,
     hostname: Option<IpAddr>,
@@ -69,8 +69,8 @@ pub struct TurbopackDevServerBuilder {
 impl TurbopackDevServerBuilder {
     pub fn new(
         turbo_tasks: Arc<TurboTasks<MemoryBackend>>,
-        project_dir: String,
-        root_dir: String,
+        project_dir: Arc<String>,
+        root_dir: Arc<String>,
     ) -> TurbopackDevServerBuilder {
         TurbopackDevServerBuilder {
             turbo_tasks,
@@ -199,7 +199,7 @@ impl TurbopackDevServerBuilder {
         let browserslist_query = self.browserslist_query;
         let log_args = Arc::new(LogOptions {
             current_dir: current_dir().unwrap(),
-            project_dir: PathBuf::from(project_dir.clone()),
+            project_dir: PathBuf::from(&*project_dir.clone()),
             show_all,
             log_detail,
             log_level: self.log_level,
@@ -218,7 +218,7 @@ impl TurbopackDevServerBuilder {
                 entry_requests.clone().into(),
                 eager_compile,
                 turbo_tasks.clone().into(),
-                browserslist_query.clone(),
+                browserslist_query.clone().into(),
             )
         };
 
@@ -229,14 +229,14 @@ impl TurbopackDevServerBuilder {
 
 #[turbo_tasks::function]
 async fn source(
-    root_dir: String,
-    project_dir: String,
+    root_dir: Arc<String>,
+    project_dir: Arc<String>,
     entry_requests: TransientInstance<Vec<EntryRequest>>,
     eager_compile: bool,
     turbo_tasks: TransientInstance<TurboTasks<MemoryBackend>>,
-    browserslist_query: String,
+    browserslist_query: Arc<String>,
 ) -> Result<Vc<Box<dyn ContentSource>>> {
-    let project_relative = project_dir.strip_prefix(&root_dir).unwrap();
+    let project_relative = project_dir.strip_prefix(&*root_dir).unwrap();
     let project_relative = project_relative
         .strip_prefix(MAIN_SEPARATOR)
         .unwrap_or(project_relative)
@@ -244,17 +244,17 @@ async fn source(
 
     let output_fs = output_fs(project_dir);
     let fs = project_fs(root_dir);
-    let project_path: Vc<turbo_tasks_fs::FileSystemPath> = fs.root().join(project_relative);
+    let project_path: Vc<turbo_tasks_fs::FileSystemPath> = fs.root().join(project_relative.into());
 
     let env = load_env(project_path);
-    let build_output_root = output_fs.root().join(".turbopack/build".to_string());
+    let build_output_root = output_fs.root().join(".turbopack/build".to_string().into());
 
     let build_chunking_context = BrowserChunkingContext::builder(
         project_path,
         build_output_root,
         build_output_root,
-        build_output_root.join("chunks".to_string()),
-        build_output_root.join("assets".to_string()),
+        build_output_root.join("chunks".to_string().into()),
+        build_output_root.join("assets".to_string().into()),
         node_build_environment(),
         RuntimeType::Development,
     )
@@ -289,8 +289,8 @@ async fn source(
     );
     let viz = Vc::upcast(turbo_tasks_viz::TurboTasksSource::new(turbo_tasks.into()));
     let static_source = Vc::upcast(StaticAssetsContentSource::new(
-        String::new(),
-        project_path.join("public".to_string()),
+        Arc::default(),
+        project_path.join("public".to_string().into()),
     ));
     let main_source = CombinedContentSource::new(vec![static_source, web_source]);
     let introspect = Vc::upcast(
@@ -303,8 +303,8 @@ async fn source(
     let source = Vc::upcast(PrefixedRouterContentSource::new(
         Default::default(),
         vec![
-            ("__turbopack__".to_string(), introspect),
-            ("__turbo_tasks__".to_string(), viz),
+            ("__turbopack__".to_string().into(), introspect),
+            ("__turbo_tasks__".to_string().into(), viz),
         ],
         main_source,
     ));
@@ -344,7 +344,7 @@ pub async fn start_server(args: &DevArguments) -> Result<()> {
 
     let tt_clone = tt.clone();
 
-    let mut server = TurbopackDevServerBuilder::new(tt, project_dir, root_dir)
+    let mut server = TurbopackDevServerBuilder::new(tt, project_dir.into(), root_dir.into())
         .eager_compile(args.eager_compile)
         .hostname(args.hostname)
         .port(args.port)
@@ -357,7 +357,7 @@ pub async fn start_server(args: &DevArguments) -> Result<()> {
         );
 
     for entry in normalize_entries(&args.common.entries) {
-        server = server.entry_request(EntryRequest::Relative(entry))
+        server = server.entry_request(EntryRequest::Relative(entry.into()))
     }
 
     #[cfg(feature = "serializable")]

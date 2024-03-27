@@ -160,9 +160,13 @@ async fn static_error(
         .to_string();
 
     body.push_str(
-        error_html_body(500, "Error rendering page".to_string(), message)
-            .await?
-            .as_str(),
+        error_html_body(
+            500,
+            "Error rendering page".to_string().into(),
+            message.into(),
+        )
+        .await?
+        .as_str(),
     );
 
     let issue = RenderingIssue {
@@ -173,7 +177,7 @@ async fn static_error(
 
     issue.cell().emit();
 
-    let html = fallback_page.with_body(body);
+    let html = fallback_page.with_body(body.into());
 
     Ok(html.content())
 }

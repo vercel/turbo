@@ -30,7 +30,7 @@ pub trait GenerateSourceMap {
     fn generate_source_map(self: Vc<Self>) -> Vc<OptionSourceMap>;
 
     /// Returns an individual section of the larger source map, if found.
-    fn by_section(self: Vc<Self>, _section: String) -> Vc<OptionSourceMap> {
+    fn by_section(self: Vc<Self>, _section: Arc<String>) -> Vc<OptionSourceMap> {
         Vc::cell(None)
     }
 }
@@ -394,7 +394,11 @@ impl SourceMap {
             origin: Vc<FileSystemPath>,
         ) -> Result<(String, String)> {
             Ok(
-                if let Some(path) = *origin.parent().try_join(source_request.to_string()).await? {
+                if let Some(path) = *origin
+                    .parent()
+                    .try_join(source_request.to_string().into())
+                    .await?
+                {
                     let path_str = path.to_string().await?;
                     let source = format!("/{SOURCE_MAP_ROOT_NAME}/{}", path_str);
                     let source_content = if let Some(source_content) = source_content {
@@ -530,7 +534,7 @@ impl GenerateSourceMap for SourceMap {
     }
 
     #[turbo_tasks::function]
-    fn by_section(&self, _section: String) -> Vc<OptionSourceMap> {
+    fn by_section(&self, _section: Arc<String>) -> Vc<OptionSourceMap> {
         Vc::cell(None)
     }
 }

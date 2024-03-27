@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use turbo_tasks::{trace::TraceRawVcs, TaskInput, Upcast, Value, ValueToString, Vc};
@@ -55,7 +57,11 @@ pub trait ChunkingContext {
     // discretion of chunking context implementors. However, we currently use this
     // in a couple of places in `turbopack-css`, so we need to remove that
     // dependency first.
-    fn chunk_path(self: Vc<Self>, ident: Vc<AssetIdent>, extension: String) -> Vc<FileSystemPath>;
+    fn chunk_path(
+        self: Vc<Self>,
+        ident: Vc<AssetIdent>,
+        extension: Arc<String>,
+    ) -> Vc<FileSystemPath>;
 
     // TODO(alexkirsz) Remove this from the chunking context.
     /// Reference Source Map Assets for chunks
@@ -73,7 +79,7 @@ pub trait ChunkingContext {
 
     fn asset_path(
         self: Vc<Self>,
-        content_hash: String,
+        content_hash: Arc<String>,
         original_asset_ident: Vc<AssetIdent>,
     ) -> Vc<FileSystemPath>;
 
