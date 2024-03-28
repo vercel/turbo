@@ -1408,6 +1408,7 @@ impl Task {
                     last_duration,
                     executions,
                     unloaded: false,
+                    running: !matches!(state.state_type, TaskStateType::Done { .. }),
                 }
             }
             TaskMetaStateReadGuard::Partial(_) => TaskStatsInfo {
@@ -1415,12 +1416,14 @@ impl Task {
                 last_duration: Duration::ZERO,
                 executions: None,
                 unloaded: true,
+                running: false,
             },
             TaskMetaStateReadGuard::Unloaded(_) => TaskStatsInfo {
                 total_duration: None,
                 last_duration: Duration::ZERO,
                 executions: None,
                 unloaded: true,
+                running: false,
             },
         }
     }
@@ -2173,4 +2176,5 @@ pub struct TaskStatsInfo {
     pub last_duration: Duration,
     pub executions: Option<u32>,
     pub unloaded: bool,
+    pub running: bool,
 }

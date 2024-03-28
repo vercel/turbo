@@ -124,6 +124,7 @@ impl Stats {
             last_duration,
             executions,
             unloaded,
+            running: _,
         } = info;
         let stats = self.tasks.entry(ty).or_default();
         stats.count += 1;
