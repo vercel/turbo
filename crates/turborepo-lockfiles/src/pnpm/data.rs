@@ -1,9 +1,13 @@
-use std::{any::Any, borrow::Cow, collections::BTreeMap};
+use std::{
+    any::Any,
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 use serde::{Deserialize, Serialize};
 use turbopath::RelativeUnixPathBuf;
 
-use super::{dep_path::DepPath, Error, LockfileVersion};
+use super::{dep_path::DepPath, Error, LockfileVersion, SupportedLockfileVersion};
 
 type Map<K, V> = std::collections::BTreeMap<K, V>;
 
@@ -26,6 +30,8 @@ pub struct PnpmLockfile {
     importers: Map<String, ProjectSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     packages: Option<Map<String, PackageSnapshot>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    snapshots: Option<Map<String, PackageSnapshotV7>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     time: Option<Map<String, String>>,
 }
@@ -92,15 +98,33 @@ pub struct PackageSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dependencies: Option<Map<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    optional_dependencies: Option<Map<String, String>>,
+    // In lockfile v7, this portion of package is stored in the top level
+    // `shapshots` map as opposed to being stored inline.
+    #[serde(flatten)]
+    snapshot: PackageSnapshotV7,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     patched: Option<bool>,
 
     #[serde(flatten)]
     other: Map<String, serde_yaml::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageSnapshotV7 {
+    #[serde(skip_serializing_if = "is_false", default)]
+    optional: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dependencies: Option<Map<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    optional_dependencies: Option<Map<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transitive_peer_dependencies: Option<Vec<String>>,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -155,6 +179,24 @@ impl PnpmLockfile {
             .and_then(|packages| packages.get(key))
     }
 
+    fn has_package(&self, key: &str) -> bool {
+        match self.version() {
+            SupportedLockfileVersion::V5 | SupportedLockfileVersion::V6 => {
+                self.packages.as_ref().map(|pkgs| pkgs.contains_key(key))
+            }
+            SupportedLockfileVersion::V7 => {
+                self.snapshots.as_ref().map(|snaps| snaps.contains_key(key))
+            }
+        }
+        .unwrap_or_default()
+    }
+
+    fn package_version(&self, key: &str) -> Option<&str> {
+        let pkgs = self.packages.as_ref()?;
+        let pkg = pkgs.get(key)?;
+        pkg.version.as_deref()
+    }
+
     fn get_workspace(&self, workspace_path: &str) -> Result<&ProjectSnapshot, crate::Error> {
         let key = match workspace_path {
             // For pnpm, the root is named "."
@@ -171,16 +213,27 @@ impl PnpmLockfile {
         matches!(self.lockfile_version.format, super::VersionFormat::String)
     }
 
+    fn version(&self) -> SupportedLockfileVersion {
+        if matches!(self.lockfile_version.format, super::VersionFormat::Float) {
+            return SupportedLockfileVersion::V5;
+        }
+        match self.lockfile_version.version.as_str() {
+            "7.0" => SupportedLockfileVersion::V7,
+            _ => SupportedLockfileVersion::V6,
+        }
+    }
+
     fn format_key(&self, name: &str, version: &str) -> String {
-        match self.is_v6() {
-            true => format!("/{name}@{version}"),
-            false => format!("/{name}/{version}"),
+        match self.version() {
+            SupportedLockfileVersion::V5 => format!("/{name}/{version}"),
+            SupportedLockfileVersion::V6 => format!("/{name}@{version}"),
+            SupportedLockfileVersion::V7 => format!("{name}@{version}"),
         }
     }
 
     // Extracts the version from a dependency path
     fn extract_version<'a>(&self, key: &'a str) -> Result<Cow<'a, str>, Error> {
-        let dp = DepPath::try_from(key)?;
+        let dp = DepPath::parse(self.version(), key)?;
         // If there's a suffix, the suffix gets included as part of the version
         // so we can track patch file changes
         if let Some(suffix) = dp.peer_suffix {
@@ -217,17 +270,14 @@ impl PnpmLockfile {
         else {
             // Check if the specifier is already an exact version
             return Ok(self
-                .get_packages(&self.format_key(name, specifier))
-                .and(Some(specifier)));
+                .has_package(&self.format_key(name, specifier))
+                .then_some(specifier));
         };
 
         let override_specifier = self.apply_overrides(name, specifier);
         if resolved_specifier == override_specifier {
             Ok(Some(resolved_version))
-        } else if self
-            .get_packages(&self.format_key(name, override_specifier))
-            .is_some()
-        {
+        } else if self.has_package(&self.format_key(name, override_specifier)) {
             Ok(Some(override_specifier))
         } else {
             Ok(None)
@@ -235,12 +285,13 @@ impl PnpmLockfile {
     }
 
     fn prune_patches(
+        &self,
         patches: &Map<String, PatchFile>,
         pruned_packages: &Map<String, PackageSnapshot>,
     ) -> Result<Map<String, PatchFile>, Error> {
         let mut pruned_patches = Map::new();
         for dependency in pruned_packages.keys() {
-            let dp = DepPath::try_from(dependency.as_str())?;
+            let dp = DepPath::parse(self.version(), dependency.as_str())?;
             let patch_key = format!("{}@{}", dp.name, dp.version);
             if let Some(patch) = patches
                 .get(&patch_key)
@@ -283,7 +334,7 @@ impl crate::Lockfile for PnpmLockfile {
         version: &str,
     ) -> Result<Option<crate::Package>, crate::Error> {
         // Check if version is a key
-        if self.get_packages(version).is_some() {
+        if self.has_package(version) {
             let extracted_version = self.extract_version(version)?;
             return Ok(Some(crate::Package {
                 key: version.into(),
@@ -297,21 +348,19 @@ impl crate::Lockfile for PnpmLockfile {
 
         let key = self.format_key(name, resolved_version);
 
-        if let Some(pkg) = self.get_packages(&key) {
-            Ok(Some(crate::Package {
-                key,
-                version: pkg
-                    .version
-                    .clone()
-                    .unwrap_or_else(|| resolved_version.to_string()),
-            }))
-        } else if let Some(pkg) = self.get_packages(resolved_version) {
-            let version = pkg.version.clone().map_or_else(
+        if self.has_package(&key) {
+            let version = self
+                .package_version(&key)
+                .unwrap_or(resolved_version)
+                .to_owned();
+            Ok(Some(crate::Package { key, version }))
+        } else if self.has_package(resolved_version) {
+            let version = self.package_version(resolved_version).map_or_else(
                 || {
                     self.extract_version(resolved_version)
                         .map(|s| s.to_string())
                 },
-                Ok,
+                |version| Ok(version.to_string()),
             )?;
             Ok(Some(crate::Package {
                 key: resolved_version.to_string(),
@@ -327,18 +376,18 @@ impl crate::Lockfile for PnpmLockfile {
         &self,
         key: &str,
     ) -> Result<Option<std::collections::HashMap<String, String>>, crate::Error> {
+        // Check snapshots for v7
+        if let Some(snapshot) = self
+            .snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(key))
+        {
+            return Ok(Some(snapshot.dependencies()));
+        }
         let Some(entry) = self.packages.as_ref().and_then(|pkgs| pkgs.get(key)) else {
             return Ok(None);
         };
-        Ok(Some(
-            entry
-                .dependencies
-                .iter()
-                .flatten()
-                .chain(entry.optional_dependencies.iter().flatten())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-        ))
+        Ok(Some(entry.snapshot.dependencies()))
     }
 
     fn subgraph(
@@ -346,6 +395,12 @@ impl crate::Lockfile for PnpmLockfile {
         workspace_packages: &[String],
         packages: &[String],
     ) -> Result<Box<dyn crate::Lockfile>, crate::Error> {
+        if matches!(self.version(), SupportedLockfileVersion::V7) {
+            return Err(crate::Error::Pnpm(Error::UnsupportedVersion(
+                self.lockfile_version.version.clone(),
+            )));
+        }
+
         let importers = self
             .importers
             .iter()
@@ -388,7 +443,7 @@ impl crate::Lockfile for PnpmLockfile {
         let patches = self
             .patched_dependencies
             .as_ref()
-            .map(|patches| Self::prune_patches(patches, &pruned_packages))
+            .map(|patches| self.prune_patches(patches, &pruned_packages))
             .transpose()?;
 
         Ok(Box::new(Self {
@@ -403,6 +458,7 @@ impl crate::Lockfile for PnpmLockfile {
             overrides: self.overrides.clone(),
             package_extensions_checksum: self.package_extensions_checksum.clone(),
             patched_dependencies: patches,
+            snapshots: None,
             time: None,
             settings: self.settings.clone(),
         }))
@@ -473,6 +529,17 @@ impl Dependency {
     }
 }
 
+impl PackageSnapshotV7 {
+    pub fn dependencies(&self) -> HashMap<String, String> {
+        self.dependencies
+            .iter()
+            .flatten()
+            .chain(self.optional_dependencies.iter().flatten())
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+}
+
 pub fn pnpm_global_change(
     prev_contents: &[u8],
     curr_contents: &[u8],
@@ -504,19 +571,26 @@ mod tests {
     const PNPM_OVERRIDE: &[u8] = include_bytes!("../../fixtures/pnpm-override.yaml").as_slice();
     const PNPM_PATCH: &[u8] = include_bytes!("../../fixtures/pnpm-patch.yaml").as_slice();
     const PNPM_PATCH_V6: &[u8] = include_bytes!("../../fixtures/pnpm-patch-v6.yaml").as_slice();
+    const PNPM_V7: &[u8] = include_bytes!("../../fixtures/pnpm-v7.yaml").as_slice();
+    const PNPM_V7_PEER: &[u8] = include_bytes!("../../fixtures/pnpm-v7-peer.yaml").as_slice();
+    const PNPM_V7_FULL: &[u8] = include_bytes!("../../fixtures/pnpm-v7-full.yaml").as_slice();
 
     use super::*;
     use crate::{Lockfile, Package};
 
-    #[test]
-    fn test_roundtrip() {
-        for fixture in &[PNPM6, PNPM7, PNPM8, PNPM8_6] {
-            let lockfile = PnpmLockfile::from_bytes(fixture).unwrap();
-            let serialized_lockfile = serde_yaml::to_string(&lockfile).unwrap();
-            let lockfile_from_serialized =
-                serde_yaml::from_slice(serialized_lockfile.as_bytes()).unwrap();
-            assert_eq!(lockfile, lockfile_from_serialized);
-        }
+    #[test_case(PNPM6)]
+    #[test_case(PNPM7)]
+    #[test_case(PNPM8)]
+    #[test_case(PNPM8_6)]
+    #[test_case(PNPM_V7)]
+    #[test_case(PNPM_V7_PEER)]
+    #[test_case(PNPM_V7_FULL)]
+    fn test_roundtrip(fixture: &[u8]) {
+        let lockfile = PnpmLockfile::from_bytes(fixture).unwrap();
+        let serialized_lockfile = serde_yaml::to_string(&lockfile).unwrap();
+        let lockfile_from_serialized =
+            serde_yaml::from_slice(serialized_lockfile.as_bytes()).unwrap();
+        assert_eq!(lockfile, lockfile_from_serialized);
     }
 
     #[test]
@@ -719,6 +793,39 @@ mod tests {
         }))
         ; "pnpm override"
     )]
+    #[test_case(
+        PNPM_V7,
+        "packages/b",
+        "is-negative",
+        "https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c",
+        Ok(Some(crate::Package {
+            key: "is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c".into(),
+            version: "2.1.0".into(),
+        }))
+        ; "v7 git"
+    )]
+    #[test_case(
+        PNPM_V7_PEER,
+        "packages/a",
+        "ajv-keywords",
+        "^5.1.0",
+        Ok(Some(crate::Package {
+            key: "ajv-keywords@5.1.0(ajv@8.12.0)".into(),
+            version: "5.1.0(ajv@8.12.0)".into(),
+        }))
+        ; "v7 peer"
+    )]
+    #[test_case(
+        PNPM_V7_PEER,
+        "packages/b",
+        "ajv-keywords",
+        "^5.1.0",
+        Ok(Some(crate::Package {
+            key: "ajv-keywords@5.1.0(ajv@8.11.0)".into(),
+            version: "5.1.0(ajv@8.11.0)".into(),
+        }))
+        ; "v7 peer 2"
+    )]
     fn test_resolve_package(
         lockfile: &[u8],
         workspace_path: &str,
@@ -913,5 +1020,35 @@ c:
         let settings = lockfile.settings.unwrap();
         assert_eq!(settings.auto_install_peers, Some(true));
         assert_eq!(settings.exclude_links_from_lockfile, Some(false));
+    }
+
+    #[test]
+    fn test_lockfile_v7_parsing() {
+        let lockfile = PnpmLockfile::from_bytes(PNPM_V7).unwrap();
+        assert!(lockfile.packages.unwrap().contains_key("is-buffer@1.1.6"));
+        assert!(lockfile.snapshots.unwrap().contains_key("is-buffer@1.1.6"));
+    }
+
+    #[test]
+    fn test_lockfile_v7_traversal() {
+        let lockfile = PnpmLockfile::from_bytes(PNPM_V7).unwrap();
+        let is_even = lockfile
+            .resolve_package("packages/a", "is-even", "^1.0.0")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            is_even,
+            Package {
+                key: "is-even@1.0.0".into(),
+                version: "1.0.0".into()
+            }
+        );
+        let is_even_deps = lockfile.all_dependencies(&is_even.key).unwrap().unwrap();
+        assert_eq!(
+            is_even_deps,
+            vec![("is-odd".to_string(), "0.1.2".to_string())]
+                .into_iter()
+                .collect()
+        );
     }
 }
