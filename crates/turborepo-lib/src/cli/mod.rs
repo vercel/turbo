@@ -955,18 +955,16 @@ pub async fn run(
     let mut telemetry_handle: Option<TelemetryHandle> = None;
 
     // initialize telemetry
-    match AnonAPIClient::new("https://telemetry.vercel.com", 250, version) {
-        Ok(anonymous_api_client) => {
-            let handle = init_telemetry(anonymous_api_client, ui);
-            match handle {
-                Ok(h) => telemetry_handle = Some(h),
-                Err(error) => {
-                    debug!("failed to start telemetry: {:?}", error)
-                }
-            }
-        }
+    let client_version = version.to_string();
+    let client_builder = move || {
+        AnonAPIClient::new("https://telemetry.vercel.com", 250, &client_version)
+            .inspect_err(|e| debug!("failed setting up client: {e}"))
+            .ok()
+    };
+    match init_telemetry(client_builder, ui) {
+        Ok(h) => telemetry_handle = Some(h),
         Err(error) => {
-            debug!("Failed to create AnonAPIClient: {:?}", error);
+            debug!("failed to start telemetry: {:?}", error)
         }
     }
 

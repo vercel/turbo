@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use reqwest::Method;
+use tokio::sync::mpsc;
 use turborepo_vercel_api::telemetry::TelemetryEvent;
 
 use crate::{retry, AnonAPIClient, Error};
@@ -40,4 +41,16 @@ impl TelemetryClient for AnonAPIClient {
 
         Ok(())
     }
+}
+
+pub struct BackgroundTelemetryClient {
+    sender: mpsc::Sender<Request>,
+}
+
+enum Request {
+    Record {
+        events: Vec<TelemetryEvent>,
+        telemetry_id: String,
+        session_id: String,
+    },
 }
