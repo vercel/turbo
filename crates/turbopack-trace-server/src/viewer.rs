@@ -33,6 +33,8 @@ pub enum ValueMode {
     PersistentAllocations,
     AllocationCount,
     Count,
+    AllocationsPerTime,
+    AllocationCountPerTime,
 }
 
 impl ValueMode {
@@ -57,6 +59,24 @@ impl ValueMode {
             ValueMode::PersistentAllocations => span.total_persistent_allocations(),
             ValueMode::AllocationCount => span.total_allocation_count(),
             ValueMode::Count => span.total_span_count(),
+            ValueMode::AllocationsPerTime => {
+                let time = span.corrected_total_time();
+                let allocations = span.total_allocations();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
+            ValueMode::AllocationCountPerTime => {
+                let time = span.corrected_total_time();
+                let allocations = span.total_allocation_count();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
         }
     }
 
@@ -69,6 +89,24 @@ impl ValueMode {
             ValueMode::PersistentAllocations => graph.total_persistent_allocations(),
             ValueMode::AllocationCount => graph.total_allocation_count(),
             ValueMode::Count => graph.total_span_count(),
+            ValueMode::AllocationsPerTime => {
+                let time = graph.corrected_total_time();
+                let allocations = graph.total_allocations();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
+            ValueMode::AllocationCountPerTime => {
+                let time = graph.corrected_total_time();
+                let allocations = graph.total_allocation_count();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
         }
     }
 
@@ -81,6 +119,24 @@ impl ValueMode {
             ValueMode::PersistentAllocations => event.total_persistent_allocations(),
             ValueMode::AllocationCount => event.total_allocation_count(),
             ValueMode::Count => event.total_span_count(),
+            ValueMode::AllocationsPerTime => {
+                let time = event.corrected_total_time();
+                let allocations = event.total_allocations();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
+            ValueMode::AllocationCountPerTime => {
+                let time = event.corrected_total_time();
+                let allocations = event.total_allocation_count();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
         }
     }
 
@@ -93,6 +149,24 @@ impl ValueMode {
             ValueMode::PersistentAllocations => bottom_up.self_persistent_allocations(),
             ValueMode::AllocationCount => bottom_up.self_allocation_count(),
             ValueMode::Count => bottom_up.self_span_count(),
+            ValueMode::AllocationsPerTime => {
+                let time = bottom_up.corrected_self_time();
+                let allocations = bottom_up.self_allocations();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
+            ValueMode::AllocationCountPerTime => {
+                let time = bottom_up.corrected_self_time();
+                let allocations = bottom_up.self_allocation_count();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
         }
     }
 
@@ -105,6 +179,24 @@ impl ValueMode {
             ValueMode::PersistentAllocations => bottom_up_span.self_persistent_allocations(),
             ValueMode::AllocationCount => bottom_up_span.self_allocation_count(),
             ValueMode::Count => bottom_up_span.self_span_count(),
+            ValueMode::AllocationsPerTime => {
+                let time = bottom_up_span.corrected_self_time();
+                let allocations = bottom_up_span.self_allocations();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
+            ValueMode::AllocationCountPerTime => {
+                let time = bottom_up_span.corrected_self_time();
+                let allocations = bottom_up_span.self_allocation_count();
+                if time == 0 {
+                    0
+                } else {
+                    allocations / time
+                }
+            }
         }
     }
 }
@@ -321,6 +413,8 @@ impl Viewer {
             "deallocations" => ValueMode::Deallocations,
             "persistent-deallocations" => ValueMode::PersistentAllocations,
             "allocation-count" => ValueMode::AllocationCount,
+            "allocations-per-time" => ValueMode::AllocationsPerTime,
+            "allocation-count-per-time" => ValueMode::AllocationCountPerTime,
             "count" => ValueMode::Count,
             _ => ValueMode::Duration,
         };
