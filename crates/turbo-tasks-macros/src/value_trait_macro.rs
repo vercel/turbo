@@ -121,15 +121,16 @@ pub fn value_trait(args: TokenStream, input: TokenStream) -> TokenStream {
                 #native_function_ident
             });
 
+            let ident_str = ident.to_string();
             default_method_registers.push(quote! {
-                trait_type.register_default_trait_method(stringify!(#ident).into(), *#native_function_id_ident);
+                trait_type.register_default_trait_method(#ident_str.into(), *#native_function_id_ident);
             });
 
             native_functions.push(quote! {
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
                 // #[turbo_tasks::async_trait]
-                trait #inline_extension_trait_ident: std::marker::Send {
+                trait #inline_extension_trait_ident: ::std::marker::Send {
                     #[allow(declare_interior_mutable_const)]
                     const #native_function_ident: #native_function_ty;
                     #[allow(declare_interior_mutable_const)]
@@ -173,20 +174,20 @@ pub fn value_trait(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     let value_debug_impl = if debug {
+        let trait_ident_fmt_str = format!("{trait_ident}({{}})");
+
         quote! {
             #[turbo_tasks::value_impl]
             impl turbo_tasks::debug::ValueDebug for Box<dyn #trait_ident> {
                 #[turbo_tasks::function]
                 pub fn dbg(self: turbo_tasks::Vc<Self>) -> turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString> {
-                    use turbo_tasks::debug::ValueDebug;
-                    self.dbg_depth(usize::MAX)
+                    turbo_tasks::debug::ValueDebug::dbg_depth(self, usize::MAX)
                 }
 
                 #[turbo_tasks::function]
-                pub async fn dbg_depth(self: turbo_tasks::Vc<Self>, depth: usize) -> anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
-                    use turbo_tasks::debug::ValueDebugFormat;
-                    let string = self.value_debug_format(depth).try_to_value_debug_string().await?.await?;
-                    Ok(turbo_tasks::debug::ValueDebugString::new(format!(concat!(stringify!(#trait_ident), "({})"), string)))
+                pub async fn dbg_depth(self: turbo_tasks::Vc<Self>, depth: usize) -> ::anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
+                    let string = turbo_tasks::debug::ValueDebugFormat::value_debug_format(&self, depth).try_to_value_debug_string().await?.await?;
+                    Ok(turbo_tasks::debug::ValueDebugString::new(format!(#trait_ident_fmt_str, string)))
                 }
             }
         }
@@ -194,10 +195,11 @@ pub fn value_trait(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! {}
     };
 
+    let trait_ident_str = trait_ident.to_string();
     let expanded = quote! {
         #[must_use]
         #(#attrs)*
-        #vis #trait_token #trait_ident: std::marker::Send + #(#supertraits)+*
+        #vis #trait_token #trait_ident: ::std::marker::Send + #(#supertraits)+*
         {
             #(#items)*
         }
@@ -207,7 +209,7 @@ pub fn value_trait(args: TokenStream, input: TokenStream) -> TokenStream {
         #[doc(hidden)]
         pub(crate) static #trait_type_ident: turbo_tasks::macro_helpers::Lazy<turbo_tasks::TraitType> =
             turbo_tasks::macro_helpers::Lazy::new(|| {
-                let mut trait_type = turbo_tasks::TraitType::new(stringify!(#trait_ident).to_string());;
+                let mut trait_type = turbo_tasks::TraitType::new(#trait_ident_str.to_string());;
                 #(#default_method_registers)*
                 trait_type
             });

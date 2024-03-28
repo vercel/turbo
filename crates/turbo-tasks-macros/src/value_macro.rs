@@ -338,13 +338,13 @@ pub fn value(args: TokenStream, input: TokenStream) -> TokenStream {
             #[turbo_tasks::value_impl]
             impl turbo_tasks::debug::ValueDebug for #ident {
                 #[turbo_tasks::function]
-                async fn dbg(&self) -> anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
+                async fn dbg(&self) -> ::anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
                     use turbo_tasks::debug::ValueDebugFormat;
                     (&self.0).value_debug_format(usize::MAX).try_to_value_debug_string().await
                 }
 
                 #[turbo_tasks::function]
-                async fn dbg_depth(&self, depth: usize) -> anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
+                async fn dbg_depth(&self, depth: usize) -> ::anyhow::Result<turbo_tasks::Vc<turbo_tasks::debug::ValueDebugString>> {
                     use turbo_tasks::debug::ValueDebugFormat;
                     (&self.0).value_debug_format(depth).try_to_value_debug_string().await
                 }
@@ -405,6 +405,10 @@ pub fn value_type_and_register(
         (quote!(), quote!())
     };
 
+    let panic_msg = format!(
+        "{} has not been initialized (this should happen via the generated register function)",
+        value_type_ident
+    );
     quote! {
         #[doc(hidden)]
         static #value_type_init_ident: turbo_tasks::macro_helpers::OnceCell<
@@ -414,12 +418,7 @@ pub fn value_type_and_register(
         pub(crate) static #value_type_ident: turbo_tasks::macro_helpers::Lazy<&turbo_tasks::ValueType> =
             turbo_tasks::macro_helpers::Lazy::new(|| {
                 #value_type_init_ident.get_or_init(|| {
-                    panic!(
-                        concat!(
-                            stringify!(#value_type_ident),
-                            " has not been initialized (this should happen via the generated register function)"
-                        )
-                    )
+                    panic!(#panic_msg)
                 })
             });
         #[doc(hidden)]

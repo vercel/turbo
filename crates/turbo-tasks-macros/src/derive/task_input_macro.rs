@@ -104,13 +104,17 @@ pub fn derive_task_input(input: TokenStream) -> TokenStream {
                 .map(Literal::usize_unsuffixed)
                 .collect();
 
+            let ident_str = ident.to_string();
+
             (
                 quote! {
                     match value {
                         turbo_tasks::ConcreteTaskInput::List(value) => {
                             let mut #inputs_list_ident = value.iter();
 
-                            let discriminant = #inputs_list_ident.next().ok_or_else(|| anyhow::anyhow!(concat!("missing discriminant for ", stringify!(#ident))))?;
+                            let Some(discriminant) = #inputs_list_ident.next() else {
+                                anyhow::bail!(concat!("missing discriminant for ", stringify!(#ident)))
+                            };
                             let discriminant: #repr = turbo_tasks::TaskInput::try_from_concrete(discriminant)?;
 
                             Ok(match discriminant {
@@ -120,10 +124,10 @@ pub fn derive_task_input(input: TokenStream) -> TokenStream {
                                         #ident::#variants_idents #variants_fields_destructuring
                                     },
                                 )*
-                                _ => return Err(anyhow::anyhow!("invalid discriminant for {}", stringify!(#ident))),
+                                _ => return Err(::anyhow::anyhow!("invalid discriminant for {}", #ident_str)),
                             })
                         },
-                        _ => Err(anyhow::anyhow!("invalid task input type, expected list")),
+                        _ => Err(::anyhow::anyhow!("invalid task input type, expected list")),
                     }
                 },
                 quote! {
@@ -132,7 +136,7 @@ pub fn derive_task_input(input: TokenStream) -> TokenStream {
                             #ident::#variants_idents #variants_fields_destructuring => {
                                 let mut #inputs_list_ident = Vec::with_capacity(1 + #variants_fields_len);
                                 let discriminant: #repr = #variants_discriminants;
-                                let discriminant = discriminant.into_concrete();
+                                let discriminant = <#repr as turbo_tasks::TaskInput>::into_concrete(discriminant);
                                 #inputs_list_ident.push(discriminant);
                                 #variants_from_expansion
                                 turbo_tasks::ConcreteTaskInput::List(#inputs_list_ident)
@@ -155,7 +159,7 @@ pub fn derive_task_input(input: TokenStream) -> TokenStream {
                             #try_from_expansion
                             Ok(#ident #destructuring)
                         },
-                        _ => Err(anyhow::anyhow!("invalid task input type, expected list")),
+                        _ => Err(::anyhow::anyhow!("invalid task input type, expected list")),
                     }
                 },
                 quote! {
@@ -220,13 +224,15 @@ fn expand_named(
         destructuring,
         quote! {
             #(
-                let #fields_idents = #inputs_list_ident.next().ok_or_else(|| anyhow::anyhow!(concat!("missing element for ", stringify!(#fields_idents))))?;
+                let Some(#fields_idents) = #inputs_list_ident.next() else {
+                    bail!(concat!("missing element for ", stringify!(#fields_idents)))
+                };
                 let #fields_idents = turbo_tasks::TaskInput::try_from_concrete(#fields_idents)?;
             )*
         },
         quote! {
             #(
-                let #fields_idents = #fields_idents.into_concrete();
+                let #fields_idents = turbo_tasks::TaskInput::into_concrete(#fields_idents);
                 #inputs_list_ident.push(#fields_idents);
             )*
         },
@@ -243,13 +249,15 @@ fn expand_unnamed(
         destructuring,
         quote! {
             #(
-                let #fields_idents = #inputs_list_ident.next().ok_or_else(|| anyhow::anyhow!(concat!("missing element for ", stringify!(#fields_idents))))?;
+                let Some(#fields_idents) = #inputs_list_ident.next() else {
+                    anyhow::bail!(concat!("missing element for ", stringify!(#fields_idents)))
+                };
                 let #fields_idents = turbo_tasks::TaskInput::try_from_concrete(#fields_idents)?;
             )*
         },
         quote! {
             #(
-                let #fields_idents = #fields_idents.into_concrete();
+                let #fields_idents = turbo_tasks::TaskInput::into_concrete(#fields_idents);
                 #inputs_list_ident.push(#fields_idents);
             )*
         },
