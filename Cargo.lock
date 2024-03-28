@@ -11630,6 +11630,7 @@ dependencies = [
  "dashmap",
  "fsevent-sys",
  "futures 0.3.28",
+ "git2 0.16.1",
  "itertools 0.10.5",
  "libc",
  "notify",
@@ -11641,6 +11642,7 @@ dependencies = [
  "tracing-test",
  "turbopath",
  "turborepo-repository",
+ "turborepo-scm",
  "walkdir",
  "wax",
 ]
