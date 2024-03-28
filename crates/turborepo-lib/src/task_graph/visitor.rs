@@ -13,6 +13,7 @@ use regex::Regex;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, Instrument, Span};
 use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf, AnchoredSystemPath};
+use turborepo_cache::CacheSource;
 use turborepo_ci::{Vendor, VendorBehavior};
 use turborepo_env::{EnvironmentVariableMap, ResolvedEnvMode};
 use turborepo_repository::{
@@ -708,7 +709,8 @@ enum ExecOutcome {
 }
 
 enum SuccessOutcome {
-    CacheHit,
+    /// The task was a cache hit, from the given source
+    CacheHit(CacheSource),
     Run,
 }
 
@@ -754,7 +756,7 @@ impl ExecContext {
         match result {
             ExecOutcome::Success(outcome) => {
                 let task_summary = match outcome {
-                    SuccessOutcome::CacheHit => tracker.cached().await,
+                    SuccessOutcome::CacheHit(source) => tracker.cached(source).await,
                     SuccessOutcome::Run => tracker.build_succeeded(0).await,
                 };
                 callback.send(Ok(())).ok();
@@ -850,7 +852,7 @@ impl ExecContext {
                 );
                 self.hash_tracker
                     .insert_cache_status(self.task_id.clone(), status);
-                return ExecOutcome::Success(SuccessOutcome::CacheHit);
+                return ExecOutcome::Success(SuccessOutcome::CacheHit(status.source));
             }
             Ok(None) => (),
             Err(e) => {
