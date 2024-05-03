@@ -58,12 +58,23 @@ function getLocalUpgradeCommand({
         ]);
         // yarn 1.x
       }
+      if (isUsingWorkspaces) {
+        return renderCommand([
+          "yarn",
+          "workspaces",
+          "foreach",
+          "--all",
+          "--include .",
+          "add",
+          `turbo@${to}`,
+          installType === "devDependencies" && "--dev",
+        ]);
+      }
       return renderCommand([
         "yarn",
         "add",
         `turbo@${to}`,
         installType === "devDependencies" && "--dev",
-        isUsingWorkspaces && "-W",
       ]);
 
     case "npm":
