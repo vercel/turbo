@@ -321,7 +321,7 @@ impl Debug for DiskFileSystem {
 
 #[turbo_tasks::value_impl]
 impl FileSystem for DiskFileSystem {
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn read(&self, fs_path: Vc<FileSystemPath>) -> Result<Vc<FileContent>> {
         let full_path = self.to_sys_path(fs_path).await?;
         self.register_invalidator(&full_path)?;
@@ -345,7 +345,7 @@ impl FileSystem for DiskFileSystem {
         Ok(content.cell())
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn read_dir(&self, fs_path: Vc<FileSystemPath>) -> Result<Vc<DirectoryContent>> {
         let full_path = self.to_sys_path(fs_path).await?;
         self.register_dir_invalidator(&full_path)?;
@@ -404,7 +404,7 @@ impl FileSystem for DiskFileSystem {
         Ok(DirectoryContent::new(entries))
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn read_link(&self, fs_path: Vc<FileSystemPath>) -> Result<Vc<LinkContent>> {
         let full_path = self.to_sys_path(fs_path).await?;
         self.register_invalidator(&full_path)?;
@@ -492,14 +492,14 @@ impl FileSystem for DiskFileSystem {
         .cell())
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn track(&self, fs_path: Vc<FileSystemPath>) -> Result<Vc<Completion>> {
         let full_path = self.to_sys_path(fs_path).await?;
         self.register_invalidator(&full_path)?;
         Ok(Completion::new())
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn write(
         &self,
         fs_path: Vc<FileSystemPath>,
@@ -613,7 +613,7 @@ impl FileSystem for DiskFileSystem {
         Ok(Completion::new())
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn write_link(
         &self,
         fs_path: Vc<FileSystemPath>,
@@ -700,7 +700,7 @@ impl FileSystem for DiskFileSystem {
         Ok(Completion::new())
     }
 
-    #[turbo_tasks::function]
+    #[turbo_tasks::function(fs)]
     async fn metadata(&self, fs_path: Vc<FileSystemPath>) -> Result<Vc<FileMeta>> {
         let full_path = self.to_sys_path(fs_path).await?;
         self.register_invalidator(&full_path)?;
