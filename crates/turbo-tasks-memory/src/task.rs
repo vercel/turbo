@@ -12,7 +12,7 @@ use std::{
 
 use anyhow::Result;
 use auto_hash_map::{AutoMap, AutoSet};
-use nohash_hasher::BuildNoHashHasher;
+use nohash_hasher::{BuildNoHashHasher, NoHashHasher};
 use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHasher;
 use smallvec::SmallVec;
@@ -925,6 +925,7 @@ impl Task {
         duration: Duration,
         memory_usage: usize,
         generation: u32,
+        cell_counters: AutoMap<ValueTypeId, u32, BuildHasherDefault<NoHashHasher<ValueTypeId>>, 8>,
         stateful: bool,
         backend: &MemoryBackend,
         turbo_tasks: &dyn TurboTasksBackendApi<MemoryBackend>,
@@ -935,6 +936,7 @@ impl Task {
             let mut change_job = None;
             #[cfg(feature = "lazy_remove_children")]
             let mut remove_job = None;
+            let mut drained_cells = SmallVec::<[Cell; 8]>::new();
             let mut dependencies = DEPENDENCIES_TO_TRACK.with(|deps| deps.take());
             {
                 let mut state = self.full_state_mut();
@@ -942,6 +944,12 @@ impl Task {
                 state
                     .gc
                     .execution_completed(duration, memory_usage, generation);
+                for (value_type, cells) in state.cells.iter_mut() {
+                    let counter = cell_counters.get(value_type).copied().unwrap_or_default();
+                    if counter != cells.len() as u32 {
+                        drained_cells.extend(cells.drain(counter as usize..));
+                    }
+                }
                 match state.state_type {
                     InProgress {
                         ref mut event,
@@ -1010,6 +1018,9 @@ impl Task {
             }
             if !dependencies.is_empty() {
                 self.clear_dependencies(dependencies, backend, turbo_tasks);
+            }
+            for cell in drained_cells {
+                cell.gc_drop(turbo_tasks);
             }
             change_job.apply(&aggregation_context);
             #[cfg(feature = "lazy_remove_children")]

@@ -14,6 +14,7 @@ use std::{
 use anyhow::{bail, Result};
 use auto_hash_map::AutoMap;
 use dashmap::{mapref::entry::Entry, DashMap};
+use nohash_hasher::NoHashHasher;
 use rustc_hash::FxHasher;
 use tokio::task::futures::TaskLocalFuture;
 use tracing::trace_span;
@@ -25,7 +26,7 @@ use turbo_tasks::{
     },
     event::EventListener,
     util::{IdFactory, NoMoveVec},
-    CellId, RawVc, TaskId, TaskIdSet, TraitTypeId, TurboTasksBackendApi, Unused,
+    CellId, RawVc, TaskId, TaskIdSet, TraitTypeId, TurboTasksBackendApi, Unused, ValueTypeId,
 };
 
 use crate::{
@@ -316,6 +317,7 @@ impl Backend for MemoryBackend {
         task_id: TaskId,
         duration: Duration,
         memory_usage: usize,
+        cell_counters: AutoMap<ValueTypeId, u32, BuildHasherDefault<NoHashHasher<ValueTypeId>>, 8>,
         stateful: bool,
         turbo_tasks: &dyn TurboTasksBackendApi<MemoryBackend>,
     ) -> bool {
@@ -329,6 +331,7 @@ impl Backend for MemoryBackend {
                 duration,
                 memory_usage,
                 generation,
+                cell_counters,
                 stateful,
                 self,
                 turbo_tasks,
