@@ -68,7 +68,8 @@ impl<T> Deref for TransientValue<T> {
 /// Equality and hash is implemented as pointer comparison.
 ///
 /// Doesn't require serialization, and won't be stored in the persistent cache
-/// in the future.
+/// in the future, so we don't include the `ValueTypeId` in the
+/// `SharedReference`.
 #[derive(Debug)]
 pub struct TransientInstance<T> {
     inner: SharedReference,
@@ -112,7 +113,7 @@ impl<T> Ord for TransientInstance<T> {
 
 impl<T: Send + Sync + 'static> From<TransientInstance<T>> for Arc<T> {
     fn from(instance: TransientInstance<T>) -> Self {
-        Arc::downcast(instance.inner.1.clone()).unwrap()
+        Arc::downcast(instance.inner.0.clone()).unwrap()
     }
 }
 
@@ -125,7 +126,7 @@ impl<T: Send + Sync + 'static> From<TransientInstance<T>> for SharedReference {
 impl<T: Send + Sync + 'static> From<Arc<T>> for TransientInstance<T> {
     fn from(arc: Arc<T>) -> Self {
         Self {
-            inner: SharedReference(None, arc),
+            inner: SharedReference(arc),
             phantom: PhantomData,
         }
     }
@@ -135,7 +136,7 @@ impl<T: Send + Sync + 'static> TryFrom<SharedReference> for TransientInstance<T>
     type Error = ();
 
     fn try_from(inner: SharedReference) -> Result<Self, Self::Error> {
-        if inner.1.downcast_ref::<T>().is_some() {
+        if inner.0.downcast_ref::<T>().is_some() {
             Ok(Self {
                 inner,
                 phantom: PhantomData,
@@ -149,7 +150,7 @@ impl<T: Send + Sync + 'static> TryFrom<SharedReference> for TransientInstance<T>
 impl<T: Send + Sync + 'static> TransientInstance<T> {
     pub fn new(value: T) -> Self {
         Self {
-            inner: SharedReference(None, Arc::new(value)),
+            inner: SharedReference(Arc::new(value)),
             phantom: PhantomData,
         }
     }
@@ -159,6 +160,6 @@ impl<T: 'static> Deref for TransientInstance<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.inner.1.downcast_ref().unwrap()
+        self.inner.0.downcast_ref().unwrap()
     }
 }

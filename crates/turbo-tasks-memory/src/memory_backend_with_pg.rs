@@ -19,12 +19,12 @@ use dashmap::{mapref::entry::Entry, DashMap, DashSet};
 use turbo_tasks::{
     backend::{
         Backend, BackendJobId, CellContent, PersistentTaskType, TaskExecutionSpec,
-        TransientTaskType,
+        TransientTaskType, TypedCellContent,
     },
     event::{Event, EventListener},
     persisted_graph::{
         ActivateResult, DeactivateResult, PersistResult, PersistTaskState, PersistedGraph,
-        PersistedGraphApi, ReadTaskState, TaskCell, TaskData,
+        PersistedGraphApi, ReadTaskState, TaskCell, TaskCells, TaskData,
     },
     util::{IdFactory, NoMoveVec, SharedError},
     CellId, RawVc, TaskId, TaskIdSet, TraitTypeId, TurboTasksBackendApi, Unused,
@@ -265,6 +265,7 @@ impl<P: PersistedGraph> MemoryBackendWithPersistedGraph<P> {
                     },
                     cells: data
                         .cells
+                        .0
                         .into_iter()
                         .map(|(k, s)| (k, (s, AutoSet::default())))
                         .collect(),
@@ -806,10 +807,12 @@ impl<P: PersistedGraph> MemoryBackendWithPersistedGraph<P> {
                                         let data = TaskData {
                                             children: children.iter().cloned().collect(),
                                             dependencies: dependencies.iter().cloned().collect(),
-                                            cells: cells
-                                                .iter()
-                                                .map(|(k, (s, _))| (*k, s.clone()))
-                                                .collect(),
+                                            cells: TaskCells(
+                                                cells
+                                                    .iter()
+                                                    .map(|(k, (s, _))| (*k, s.clone()))
+                                                    .collect(),
+                                            ),
                                             output: *output,
                                         };
                                         let externally_active =
@@ -1324,7 +1327,7 @@ impl<P: PersistedGraph> Backend for MemoryBackendWithPersistedGraph<P> {
         index: CellId,
         reader: TaskId,
         turbo_tasks: &dyn TurboTasksBackendApi<MemoryBackendWithPersistedGraph<P>>,
-    ) -> Result<Result<CellContent, EventListener>> {
+    ) -> Result<Result<TypedCellContent, EventListener>> {
         let (mut state, _task_info) = self.mem_state_mut(task, turbo_tasks);
         let TaskState {
             ref mut scheduled,
@@ -1346,7 +1349,7 @@ impl<P: PersistedGraph> Backend for MemoryBackendWithPersistedGraph<P> {
         if let Some((cell, dependent)) = mem_state.cells.get_mut(&index) {
             match cell {
                 TaskCell::Content(content) => {
-                    let content = content.clone();
+                    let content = content.clone().into_typed(index.type_id);
                     let need_dependency = dependent.insert(reader);
                     drop(state);
                     if need_dependency {
@@ -1389,7 +1392,7 @@ impl<P: PersistedGraph> Backend for MemoryBackendWithPersistedGraph<P> {
         task: TaskId,
         index: CellId,
         turbo_tasks: &dyn TurboTasksBackendApi<MemoryBackendWithPersistedGraph<P>>,
-    ) -> Result<Result<CellContent, EventListener>> {
+    ) -> Result<Result<TypedCellContent, EventListener>> {
         let (mut state, _) = self.mem_state_mut(task, turbo_tasks);
         let TaskState {
             ref mut scheduled,
@@ -1403,7 +1406,7 @@ impl<P: PersistedGraph> Backend for MemoryBackendWithPersistedGraph<P> {
             .ok_or_else(|| anyhow!("Cannot read non-existing cell"))?;
         match cell {
             TaskCell::Content(content) => {
-                let content = content.clone();
+                let content = content.clone().into_typed(index.type_id);
                 drop(state);
                 Ok(Ok(content))
             }
@@ -1427,17 +1430,18 @@ impl<P: PersistedGraph> Backend for MemoryBackendWithPersistedGraph<P> {
         task: TaskId,
         index: CellId,
         turbo_tasks: &dyn TurboTasksBackendApi<MemoryBackendWithPersistedGraph<P>>,
-    ) -> Result<CellContent> {
+    ) -> Result<TypedCellContent> {
         let (state, _) = self.mem_state_mut(task, turbo_tasks);
         let mem_state = state.memory.as_ref().unwrap();
         if let Some((cell, _)) = mem_state.cells.get(&index) {
             match cell {
-                TaskCell::Content(content) => Ok(content.clone()),
+                TaskCell::Content(content) => Ok(content.to_owned()),
                 TaskCell::NeedComputation => Ok(CellContent(None)),
             }
         } else {
             Ok(CellContent(None))
         }
+        .map(|c| c.into_typed(index.type_id))
     }
 
     fn read_task_collectibles(

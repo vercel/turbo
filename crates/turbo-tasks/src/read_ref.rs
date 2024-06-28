@@ -13,6 +13,7 @@ use turbo_tasks_hash::DeterministicHash;
 use crate::{
     debug::{ValueDebugFormat, ValueDebugFormatString},
     macro_helpers::find_cell_by_type,
+    task::concrete_task_input::TypedSharedReference,
     trace::{TraceRawVcs, TraceRawVcsContext},
     SharedReference, Vc, VcRead, VcValueType,
 };
@@ -248,8 +249,10 @@ where
     /// reference.
     pub fn cell(read_ref: ReadRef<T>) -> Vc<T> {
         let local_cell = find_cell_by_type(T::get_value_type_id());
-        local_cell
-            .update_shared_reference(SharedReference(Some(T::get_value_type_id()), read_ref.0));
+        local_cell.update_shared_reference(TypedSharedReference(
+            T::get_value_type_id(),
+            SharedReference(read_ref.0),
+        ));
         Vc {
             node: local_cell.into(),
             _t: PhantomData,

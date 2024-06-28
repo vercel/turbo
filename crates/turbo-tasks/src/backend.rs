@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use auto_hash_map::AutoMap;
 use serde::{Deserialize, Serialize};
 use tracing::Span;
@@ -19,7 +19,7 @@ pub use crate::id::BackendJobId;
 use crate::{
     event::EventListener, manager::TurboTasksBackendApi, raw_vc::CellId, registry,
     ConcreteTaskInput, FunctionId, RawVc, ReadRef, SharedReference, TaskId, TaskIdProvider,
-    TaskIdSet, TraitRef, TraitTypeId, VcValueTrait, VcValueType,
+    TaskIdSet, TraitRef, TraitTypeId, ValueTypeId, VcValueTrait, VcValueType,
 };
 
 pub enum TaskType {
@@ -143,10 +143,10 @@ pub struct TaskExecutionSpec {
     pub span: Span,
 }
 
-// TODO technically CellContent is already indexed by the ValueTypeId, so we
-// don't need to store it here
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct CellContent(pub Option<SharedReference>);
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TypedCellContent(pub ValueTypeId, pub CellContent);
 
 impl Display for CellContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -157,9 +157,9 @@ impl Display for CellContent {
     }
 }
 
-impl CellContent {
+impl TypedCellContent {
     pub fn cast<T: Any + VcValueType>(self) -> Result<ReadRef<T>> {
-        let data = self.0.ok_or_else(|| anyhow!("Cell is empty"))?;
+        let data = self.1 .0.ok_or_else(|| anyhow!("Cell is empty"))?;
         let data = data
             .downcast()
             .ok_or_else(|| anyhow!("Unexpected type in cell"))?;
@@ -168,25 +168,37 @@ impl CellContent {
 
     /// # Safety
     ///
-    /// The caller must ensure that the CellContent contains a vc that
-    /// implements T.
+    /// The caller must ensure that the TypedCellContent contains a vc
+    /// that implements T.
     pub fn cast_trait<T>(self) -> Result<TraitRef<T>>
     where
         T: VcValueTrait + ?Sized,
     {
-        let shared_reference = self.0.ok_or_else(|| anyhow!("Cell is empty"))?;
-        if shared_reference.0.is_none() {
-            bail!("Cell content is untyped");
-        }
+        let shared_reference = self
+            .1
+             .0
+            .ok_or_else(|| anyhow!("Cell is empty"))?
+            .typed(self.0);
         Ok(
-            // Safety: We just checked that the content is typed.
+            // Safety: It is a TypedSharedReference
             TraitRef::new(shared_reference),
         )
     }
 
     pub fn try_cast<T: Any + VcValueType>(self) -> Option<ReadRef<T>> {
-        self.0
+        self.1
+             .0
             .and_then(|data| data.downcast().map(|data| ReadRef::new(data)))
+    }
+
+    pub fn into_untyped(self) -> CellContent {
+        self.1
+    }
+}
+
+impl CellContent {
+    pub fn into_typed(self, type_id: ValueTypeId) -> TypedCellContent {
+        TypedCellContent(type_id, self)
     }
 }
 
@@ -271,7 +283,7 @@ pub trait Backend: Sync + Send {
         index: CellId,
         reader: TaskId,
         turbo_tasks: &dyn TurboTasksBackendApi<Self>,
-    ) -> Result<Result<CellContent, EventListener>>;
+    ) -> Result<Result<TypedCellContent, EventListener>>;
 
     /// INVALIDATION: Be careful with this, it will not track dependencies, so
     /// using it could break cache invalidation.
@@ -280,7 +292,7 @@ pub trait Backend: Sync + Send {
         task: TaskId,
         index: CellId,
         turbo_tasks: &dyn TurboTasksBackendApi<Self>,
-    ) -> Result<Result<CellContent, EventListener>>;
+    ) -> Result<Result<TypedCellContent, EventListener>>;
 
     /// INVALIDATION: Be careful with this, it will not track dependencies, so
     /// using it could break cache invalidation.
@@ -289,10 +301,10 @@ pub trait Backend: Sync + Send {
         current_task: TaskId,
         index: CellId,
         turbo_tasks: &dyn TurboTasksBackendApi<Self>,
-    ) -> Result<CellContent> {
+    ) -> Result<TypedCellContent> {
         match self.try_read_task_cell_untracked(current_task, index, turbo_tasks)? {
             Ok(content) => Ok(content),
-            Err(_) => Ok(CellContent(None)),
+            Err(_) => Ok(TypedCellContent(index.type_id, CellContent(None))),
         }
     }
 
