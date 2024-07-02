@@ -1,13 +1,16 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Write};
 
 use anyhow::{bail, Result};
 use indexmap::IndexSet;
 use rustc_hash::FxHashMap;
 use swc_core::{
     common::{util::take::Take, SyntaxContext, DUMMY_SP, GLOBALS},
-    ecma::ast::{
-        ExportNamedSpecifier, Id, Ident, ImportDecl, Module, ModuleDecl, ModuleExportName,
-        ModuleItem, NamedExport, Program,
+    ecma::{
+        ast::{
+            ExportNamedSpecifier, Id, Ident, ImportDecl, Module, ModuleDecl, ModuleExportName,
+            ModuleItem, NamedExport, Program,
+        },
+        codegen::{text_writer::JsWriter, Emitter},
     },
 };
 use turbo_tasks::{RcStr, ValueToString, Vc};
@@ -110,6 +113,10 @@ impl Analyzer<'_> {
                 for id in item.var_decls.iter() {
                     let state = self.vars.entry(id.clone()).or_default();
 
+                    if state.declarator.is_none() {
+                        state.declarator = Some(item_id.clone());
+                    }
+
                     if item.is_hoisted {
                         state.last_writes.push(item_id.clone());
                     } else {
@@ -171,7 +178,12 @@ impl Analyzer<'_> {
                     if let Some(declarator) = &state.declarator {
                         if declarator != item_id {
                             // A write also depends on the declaration.
-                            self.g.add_weak_deps(item_id, [declarator].iter().copied());
+                            if item.side_effects {
+                                self.g
+                                    .add_strong_deps(item_id, [declarator].iter().copied());
+                            } else {
+                                self.g.add_weak_deps(item_id, [declarator].iter().copied());
+                            }
                         }
                     }
                 }
@@ -202,9 +214,14 @@ impl Analyzer<'_> {
                     // Optimization: Remove each module item to which we
                     // just created a strong dependency from LAST_WRITES
 
-                    state
-                        .last_writes
-                        .retain(|last_write| !self.g.has_dep(item_id, last_write, true));
+                    // TODO(kdy1): Re-enable this optimization
+                    // I disabled this optimization because it causes some issues while enabling
+                    // tree ahking in next.js
+                    //
+                    // state
+                    //     .last_writes
+                    //     .retain(|last_write| !self.g.has_dep(item_id,
+                    // last_write, true));
 
                     // Drop all writes which are not reachable from this item.
                     //
@@ -256,6 +273,14 @@ impl Analyzer<'_> {
 
                     let state = get_var(&self.vars, id);
                     self.g.add_strong_deps(item_id, state.last_writes.iter());
+
+                    if let Some(declarator) = &state.declarator {
+                        if declarator != item_id {
+                            // A read also depends on the declaration.
+                            self.g
+                                .add_strong_deps(item_id, [declarator].iter().copied());
+                        }
+                    }
                 }
 
                 // For each var in EVENTUAL_WRITE_VARS:
@@ -266,6 +291,14 @@ impl Analyzer<'_> {
                     let state = get_var(&self.vars, id);
 
                     self.g.add_weak_deps(item_id, state.last_reads.iter());
+
+                    if let Some(declarator) = &state.declarator {
+                        if declarator != item_id {
+                            // A write also depends on the declaration.
+                            self.g
+                                .add_strong_deps(item_id, [declarator].iter().copied());
+                        }
+                    }
                 }
 
                 // (no state update happens, since this is only triggered by
@@ -322,16 +355,60 @@ async fn get_part_id(result: &SplitResult, part: Vc<ModulePart>) -> Result<u32> 
         }
     };
 
-    let entrypoints = match &result {
-        SplitResult::Ok { entrypoints, .. } => entrypoints,
-        _ => bail!("split failed"),
+    let SplitResult::Ok {
+        entrypoints,
+        modules,
+        ..
+    } = &result
+    else {
+        bail!("split failed")
     };
 
     let part_id = match entrypoints.get(&key) {
-        Some(id) => *id,
+        Some(&id) => id,
         None => {
+            // This is required to handle `export * from 'foo'`
+            if let ModulePart::Export(..) = &*part {
+                if let Some(&v) = entrypoints.get(&Key::ModuleEvaluation) {
+                    return Ok(v);
+                }
+            }
+
+            let mut dump = String::new();
+
+            for (idx, m) in modules.iter().enumerate() {
+                let ParseResult::Ok {
+                    program,
+                    source_map,
+                    ..
+                } = &*m.await?
+                else {
+                    bail!("failed to get module")
+                };
+
+                {
+                    let mut buf = vec![];
+
+                    {
+                        let wr = JsWriter::new(Default::default(), "\n", &mut buf, None);
+
+                        let mut emitter = Emitter {
+                            cfg: Default::default(),
+                            comments: None,
+                            cm: source_map.clone(),
+                            wr,
+                        };
+
+                        emitter.emit_program(program).unwrap();
+                    }
+                    let code = String::from_utf8(buf).unwrap();
+
+                    writeln!(dump, "# Module #{idx}:\n{code}\n\n\n")?;
+                }
+            }
+
             bail!(
-                "could not find part id for module part {:?} in {:?}",
+                "could not find part id for module part {:?} in {:?}\n\nModule dump:\n{dump}",
                 key,
                 entrypoints
             )
@@ -376,11 +453,38 @@ pub(super) async fn split_module(asset: Vc<EcmascriptModuleAsset>) -> Result<Vc<
 }
 
 #[turbo_tasks::function]
+async fn should_skip(ident: Vc<AssetIdent>, _: Vc<Box<dyn Source>>) -> Result<Vc<bool>> {
+    // Skip `@swc/helpers`
+    let s = ident.to_string().await?;
+    if s.contains("@swc/helpers") {
+        return Ok(Vc::cell(true));
+    }
+
+    // TODO: Fix bug and remove this
+    if s.contains("client-component-renderer-logger")
+        || s.contains("nanoid")
+        || s.contains("@opentelemetry/core")
+    {
+        return Ok(Vc::cell(true));
+    }
+
+    Ok(Vc::cell(false))
+}
+
+#[turbo_tasks::function]
 pub(super) async fn split(
     ident: Vc<AssetIdent>,
     source: Vc<Box<dyn Source>>,
     parsed: Vc<ParseResult>,
 ) -> Result<Vc<SplitResult>> {
+    // If the script file is a common js file, we cannot split the module
+    if *should_skip(ident, source).await? {
+        return Ok(SplitResult::Failed {
+            parse_result: parsed,
+        }
+        .cell());
+    }
+
     let parse_result = parsed.await?;
 
     match &*parse_result {
@@ -393,12 +497,29 @@ pub(super) async fn split(
             ..
         } => {
             // If the script file is a common js file, we cannot split the module
-            if cjs_finder::contains_cjs(program) {
+            if cjs_finder::should_skip_tree_shaking(program) {
                 return Ok(SplitResult::Failed {
                     parse_result: parsed,
                 }
                 .cell());
             }
+
+            let mut buf = vec![];
+
+            {
+                let wr = JsWriter::new(Default::default(), "\n", &mut buf, None);
+
+                let mut emitter = Emitter {
+                    cfg: Default::default(),
+                    comments: None,
+                    cm: source_map.clone(),
+                    wr,
+                };
+
+                emitter.emit_program(program).unwrap();
+            }
+            let code = String::from_utf8(buf).unwrap();
+            eprintln!("# Program({}):\n{code}", ident.to_string().await?);
 
             let module = match program {
                 Program::Module(module) => module,
@@ -422,6 +543,24 @@ pub(super) async fn split(
             } = dep_graph.split_module(&items);
 
             assert_ne!(modules.len(), 0, "modules.len() == 0;\nModule: {module:?}",);
+
+            for (i, m) in modules.iter().enumerate() {
+                let mut buf = vec![];
+                {
+                    let wr = JsWriter::new(Default::default(), "\n", &mut buf, None);
+
+                    let mut emitter = Emitter {
+                        cfg: Default::default(),
+                        comments: None,
+                        cm: source_map.clone(),
+                        wr,
+                    };
+
+                    emitter.emit_module(m).unwrap();
+                }
+                let code = String::from_utf8(buf).unwrap();
+                eprintln!("# Module {i}:\n{code}");
+            }
 
             for &v in entrypoints.values() {
                 debug_assert!(
