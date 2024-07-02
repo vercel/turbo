@@ -1,5 +1,5 @@
 import path from "node:path";
-import chalk from "chalk";
+import { bold, red, cyan } from "picocolors";
 import type { Project } from "@turbo/workspaces";
 import {
   getWorkspaceDetails,
@@ -39,18 +39,18 @@ function handleErrors(
   telemetry?.trackCommandStatus({ command: "create", status: "error" });
   // handle errors from ../../transforms
   if (err instanceof TransformError) {
-    error(chalk.bold(err.transform), chalk.red(err.message));
+    error(bold(err.transform), red(err.message));
     if (err.fatal) {
       process.exit(1);
     }
     // handle errors from @turbo/workspaces
   } else if (err instanceof ConvertError && err.type !== "unknown") {
-    error(chalk.red(err.message));
+    error(red(err.message));
     process.exit(1);
     // handle download errors from @turbo/utils
   } else if (err instanceof DownloadError) {
-    error(chalk.red("Unable to download template from Github"));
-    error(chalk.red(err.message));
+    error(red("Unable to download template from Github"));
+    error(red(err.message));
     process.exit(1);
   }
 
@@ -203,16 +203,14 @@ export async function create(
     let lastGroup: string | undefined;
     workspacesForDisplay.forEach(({ group, title, description }, idx) => {
       if (idx === 0 || group !== lastGroup) {
-        logger.log(chalk.cyan(group));
+        logger.log(cyan(group));
       }
-      logger.log(
-        ` - ${chalk.bold(title)}${description ? `: ${description}` : ""}`
-      );
+      logger.log(` - ${bold(title)}${description ? `: ${description}` : ""}`);
       lastGroup = group;
     });
   } else {
-    logger.log(chalk.cyan("apps"));
-    logger.log(` - ${chalk.bold(projectName)}`);
+    logger.log(cyan("apps"));
+    logger.log(` - ${bold(projectName)}`);
   }
 
   // run install
@@ -248,13 +246,11 @@ export async function create(
 
   if (projectDirIsCurrentDir) {
     logger.log(
-      `${chalk.bold(
-        turboGradient(">>> Success!")
-      )} Your new Turborepo is ready.`
+      `${bold(turboGradient(">>> Success!"))} Your new Turborepo is ready.`
     );
   } else {
     logger.log(
-      `${chalk.bold(
+      `${bold(
         turboGradient(">>> Success!")
       )} Created your Turborepo at ${chalk.green(relativeProjectDir)}`
     );
@@ -282,7 +278,7 @@ export async function create(
       .filter((script) => SCRIPTS_TO_DISPLAY[script])
       .forEach((script) => {
         logger.log(
-          `   - ${chalk.cyan(`${packageManagerMeta.command} run ${script}`)}: ${
+          `   - ${cyan(`${packageManagerMeta.command} run ${script}`)}: ${
             SCRIPTS_TO_DISPLAY[script]
           } all apps and packages`
         );

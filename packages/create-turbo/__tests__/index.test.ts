@@ -1,6 +1,6 @@
 import path from "node:path";
 import childProcess from "node:child_process";
-import chalk from "chalk";
+import { bold, cyan, red } from "picocolors";
 import { setupTestFixtures, spyConsole, spyExit } from "@turbo/test-utils";
 import { logger } from "@turbo/utils";
 import type { PackageManager } from "@turbo/utils";
@@ -92,7 +92,7 @@ describe("create-turbo", () => {
         telemetry,
       });
 
-      const expected = `${chalk.bold(
+      const expected = `${bold(
         logger.turboGradient(">>> Success!")
       )} Created your Turborepo at ${chalk.green(
         path.relative(process.cwd(), root)
@@ -113,7 +113,7 @@ describe("create-turbo", () => {
 
       availableScripts.forEach((script) => {
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining(chalk.cyan(`${packageManager} run ${script}`))
+          expect.stringContaining(cyan(`${packageManager} run ${script}`))
         );
       });
 
@@ -179,7 +179,7 @@ describe("create-turbo", () => {
         telemetry,
       });
 
-      const expected = `${chalk.bold(
+      const expected = `${bold(
         logger.turboGradient(">>> Success!")
       )} Created your Turborepo at ${chalk.green(
         path.relative(process.cwd(), root)
@@ -200,7 +200,7 @@ describe("create-turbo", () => {
 
       availableScripts.forEach((script) => {
         expect(mockConsole.log).toHaveBeenCalledWith(
-          expect.stringContaining(chalk.cyan(`${packageManager} run ${script}`))
+          expect.stringContaining(cyan(`${packageManager} run ${script}`))
         );
       });
 
@@ -256,12 +256,12 @@ describe("create-turbo", () => {
     expect(mockConsole.error).toHaveBeenNthCalledWith(
       1,
       logger.turboRed.bold(">>>"),
-      chalk.red("Unable to download template from Github")
+      red("Unable to download template from Github")
     );
     expect(mockConsole.error).toHaveBeenNthCalledWith(
       2,
       logger.turboRed.bold(">>>"),
-      chalk.red("Could not connect")
+      red("Could not connect")
     );
     expect(mockExit.exit).toHaveBeenCalledWith(1);
 
