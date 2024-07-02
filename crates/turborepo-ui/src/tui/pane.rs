@@ -9,7 +9,11 @@ use tracing::debug;
 use tui_term::widget::PseudoTerminal;
 use turborepo_vt100 as vt100;
 
-use super::{app::Direction, Error};
+use super::{
+    app::Direction,
+    event::{OutputLogs, TaskResult},
+    Error,
+};
 
 const FOOTER_TEXT_ACTIVE: &str = "Press`Ctrl-Z` to stop interacting.";
 const FOOTER_TEXT_INACTIVE: &str = "Press `Enter` to interact.";
@@ -28,6 +32,8 @@ struct TerminalOutput<W> {
     parser: vt100::Parser,
     stdin: Option<W>,
     status: Option<String>,
+    output_logs: Option<OutputLogs>,
+    task_result: Option<TaskResult>,
 }
 
 impl<W> TerminalPane<W> {
@@ -102,6 +108,20 @@ impl<W> TerminalPane<W> {
         Ok(())
     }
 
+    pub fn set_output_logs(&mut self, task: &str, output_logs: OutputLogs) -> Result<(), Error> {
+        let task = self.task_mut(task)?;
+        // Do not care about previous output logs mode.
+        // This should also only ever get set once on task start.
+        let _ = task.output_logs.insert(output_logs);
+        Ok(())
+    }
+
+    pub fn set_task_result(&mut self, task: &str, task_result: TaskResult) -> Result<(), Error> {
+        let task = self.task_mut(task)?;
+        let _ = task.task_result.insert(task_result);
+        Ok(())
+    }
+
     pub fn scroll(&mut self, task: &str, direction: Direction) -> Result<(), Error> {
         let task = self.task_mut(task)?;
         let scrollback = task.parser.screen().scrollback();
@@ -161,6 +181,12 @@ impl<W: Write> TerminalPane<W> {
     }
 }
 
+enum LogBehavior {
+    Full,
+    Status,
+    Nothing,
+}
+
 impl<W> TerminalOutput<W> {
     fn new(rows: u16, cols: u16, stdin: Option<W>) -> Self {
         Self {
@@ -169,6 +195,8 @@ impl<W> TerminalOutput<W> {
             rows,
             cols,
             status: None,
+            output_logs: None,
+            task_result: None,
         }
     }
 
@@ -187,21 +215,55 @@ impl<W> TerminalOutput<W> {
         self.cols = cols;
     }
 
+    fn persist_behavior(&self) -> LogBehavior {
+        match self.output_logs.unwrap_or(OutputLogs::Full) {
+            OutputLogs::Full => LogBehavior::Full,
+            OutputLogs::None => LogBehavior::Nothing,
+            OutputLogs::HashOnly => LogBehavior::Status,
+            OutputLogs::NewOnly => {
+                // TODO: we should print if there was a cache miss, but task didn't finish run
+                if matches!(
+                    self.task_result,
+                    Some(TaskResult::Success(super::event::CacheResult::Miss)),
+                ) {
+                    LogBehavior::Full
+                } else {
+                    LogBehavior::Nothing
+                }
+            }
+            OutputLogs::ErrorsOnly => {
+                if matches!(self.task_result, Some(TaskResult::Failure)) {
+                    LogBehavior::Full
+                } else {
+                    LogBehavior::Nothing
+                }
+            }
+        }
+    }
+
     #[tracing::instrument(skip(self))]
     fn persist_screen(&self, task_name: &str) -> std::io::Result<()> {
-        let screen = self.parser.entire_screen();
-        let title = self.title(task_name);
         let mut stdout = std::io::stdout().lock();
-        stdout.write_all("┌".as_bytes())?;
-        stdout.write_all(title.as_bytes())?;
-        stdout.write_all(b"\r\n")?;
-        for row in screen.rows_formatted(0, self.cols) {
-            stdout.write_all("│ ".as_bytes())?;
-            stdout.write_all(&row)?;
-            stdout.write_all(b"\r\n")?;
+        let title = self.title(task_name);
+        match self.persist_behavior() {
+            LogBehavior::Full => {
+                let screen = self.parser.entire_screen();
+                stdout.write_all("┌".as_bytes())?;
+                stdout.write_all(title.as_bytes())?;
+                stdout.write_all(b"\r\n")?;
+                for row in screen.rows_formatted(0, self.cols) {
+                    stdout.write_all("│ ".as_bytes())?;
+                    stdout.write_all(&row)?;
+                    stdout.write_all(b"\r\n")?;
+                }
+                stdout.write_all("└────>\r\n".as_bytes())?;
+            }
+            LogBehavior::Status => {
+                stdout.write_all(title.as_bytes())?;
+                stdout.write_all(b"\r\n")?;
+            }
+            LogBehavior::Nothing => (),
         }
-        stdout.write_all("└────>\r\n".as_bytes())?;
-
         Ok(())
     }
 }

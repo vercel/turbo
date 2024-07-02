@@ -14,7 +14,9 @@ use tracing::debug;
 const PANE_SIZE_RATIO: f32 = 3.0 / 4.0;
 const FRAMERATE: Duration = Duration::from_millis(3);
 
-use super::{input, AppReceiver, Error, Event, InputOptions, TaskTable, TerminalPane};
+use super::{
+    event::TaskResult, input, AppReceiver, Error, Event, InputOptions, TaskTable, TerminalPane,
+};
 
 pub struct App<I> {
     table: TaskTable,
@@ -89,6 +91,12 @@ impl<I> App<I> {
     pub fn update_tasks(&mut self, tasks: Vec<String>) {
         self.table = TaskTable::new(tasks.clone());
         self.next();
+    }
+
+    pub fn finish_task(&mut self, task_name: &str, task_result: TaskResult) -> Result<(), Error> {
+        self.table.finish_task(task_name, task_result)?;
+        self.pane.set_task_result(task_name, task_result)?;
+        Ok(())
     }
 }
 
@@ -225,8 +233,9 @@ fn update(
     event: Event,
 ) -> Result<Option<mpsc::SyncSender<()>>, Error> {
     match event {
-        Event::StartTask { task } => {
+        Event::StartTask { task, output_logs } => {
             app.table.start_task(&task)?;
+            app.pane.set_output_logs(&task, output_logs)?;
             app.started_tasks.push(task);
         }
         Event::TaskOutput { task, output } => {
@@ -246,7 +255,7 @@ fn update(
             app.table.tick();
         }
         Event::EndTask { task, result } => {
-            app.table.finish_task(&task, result)?;
+            app.finish_task(&task, result)?;
         }
         Event::Up => {
             app.previous();
