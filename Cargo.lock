@@ -4456,9 +4456,9 @@ dependencies = [
 
 [[package]]
 name = "markdown"
-version = "1.0.0-alpha.17"
+version = "1.0.0-alpha.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21e27d6220ce21f80ce5c4201f23a37c6f1ad037c72c9d1ff215c2919605a5d6"
+checksum = "4e61c5c85b392273c4d4ea546e6399ace3e3db172ab01b6de8f3d398d1dbd2ec"
 dependencies = [
  "unicode-id",
 ]
@@ -4511,13 +4511,13 @@ dependencies = [
 
 [[package]]
 name = "mdxjs"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce40dd4643deb0adb6ab3eda8374bd23da81a87e982ff9493e07bf9356f3248f"
+checksum = "6996bd9591dc92f29740adca2e1290fa17919dab0b0337918ee05f257cff284e"
 dependencies = [
  "markdown",
  "serde",
- "swc_core 0.95.8",
+ "swc_core",
 ]
 
 [[package]]
@@ -7813,7 +7813,7 @@ dependencies = [
  "clap 4.5.2",
  "owo-colors",
  "regex",
- "swc_core 0.96.0",
+ "swc_core",
 ]
 
 [[package]]
@@ -7961,22 +7961,6 @@ dependencies = [
  "quote",
  "swc_macros_common",
  "syn 2.0.58",
-]
-
-[[package]]
-name = "swc_core"
-version = "0.95.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03e2e9bfd1993143f92dda0c5e1ef8ec1411d140b13555805673bfca0fdc0d68"
-dependencies = [
- "swc_atoms",
- "swc_common",
- "swc_ecma_ast",
- "swc_ecma_codegen",
- "swc_ecma_parser",
- "swc_ecma_transforms_base",
- "swc_ecma_visit",
- "vergen",
 ]
 
 [[package]]
@@ -10490,7 +10474,7 @@ dependencies = [
  "node-file-trace",
  "styled_components",
  "styled_jsx",
- "swc_core 0.96.0",
+ "swc_core",
  "swc_emotion",
  "swc_relay",
  "testing",
@@ -10632,7 +10616,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sourcemap",
- "swc_core 0.96.0",
+ "swc_core",
  "tokio",
  "tracing",
  "turbo-tasks",
@@ -10670,7 +10654,7 @@ dependencies = [
  "regex",
  "serde",
  "smallvec",
- "swc_core 0.96.0",
+ "swc_core",
  "tracing",
  "turbo-tasks",
  "turbo-tasks-build",
@@ -10739,7 +10723,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sourcemap",
- "swc_core 0.96.0",
+ "swc_core",
  "tokio",
  "tracing",
  "turbo-tasks",
@@ -10778,7 +10762,7 @@ dependencies = [
  "serde_json",
  "styled_components",
  "styled_jsx",
- "swc_core 0.96.0",
+ "swc_core",
  "swc_emotion",
  "swc_relay",
  "tracing",
@@ -10953,7 +10937,7 @@ dependencies = [
 name = "turbopack-swc-utils"
 version = "0.1.0"
 dependencies = [
- "swc_core 0.96.0",
+ "swc_core",
  "turbo-tasks",
  "turbo-tasks-build",
  "turbopack-core",
