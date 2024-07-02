@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -32,12 +32,12 @@ pub enum RelayLanguage {
 
 #[derive(Debug)]
 pub struct RelayTransformer {
-    config: swc_relay::Config,
+    config: Arc<swc_relay::Config>,
 }
 
 impl RelayTransformer {
     pub fn new(config: &RelayConfig) -> Self {
-        let options = swc_relay::Config {
+        let options = Arc::new(swc_relay::Config {
             artifact_directory: config.artifact_directory.as_ref().map(PathBuf::from),
             language: config.language.as_ref().map_or(
                 RelayLanguageConfig::TypeScript,
@@ -48,7 +48,7 @@ impl RelayTransformer {
                 },
             ),
             ..Default::default()
-        };
+        });
         Self { config: options }
     }
 }
@@ -62,16 +62,16 @@ impl CustomTransformer for RelayTransformer {
         let (root, config) = if self.config.artifact_directory.is_some() {
             (PathBuf::new(), None)
         } else {
-            let config = swc_relay::Config {
+            let config = Arc::new(swc_relay::Config {
                 artifact_directory: Some(PathBuf::from("__generated__")),
-                ..self.config
-            };
+                ..(*self.config).clone()
+            });
             (PathBuf::from("."), Some(config))
         };
 
         let p = std::mem::replace(program, Program::Module(Module::dummy()));
         *program = p.fold_with(&mut swc_relay::relay(
-            config.as_ref().unwrap_or(&self.config),
+            config.unwrap_or_else(|| self.config.clone()),
             FileName::Real(PathBuf::from(ctx.file_name_str)),
             root,
             // [TODO]: pages_dir comes through next-swc-loader
