@@ -56,7 +56,6 @@ pub struct RunBuilder {
     repo_root: AbsoluteSystemPathBuf,
     ui: UI,
     version: &'static str,
-    ui_mode: UIMode,
     api_client: APIClient,
     analytics_sender: Option<AnalyticsSender>,
     // In watch mode, we can have a changed package that we want to serve as an entrypoint.
@@ -77,13 +76,12 @@ impl RunBuilder {
         let allow_missing_package_manager = config.allow_no_package_manager();
 
         let version = base.version();
-        let ui_mode = config.ui();
         let processes = ProcessManager::new(
             // We currently only use a pty if the following are met:
             // - we're attached to a tty
             atty::is(atty::Stream::Stdout) &&
             // - if we're on windows, we're using the UI
-            (!cfg!(windows) || matches!(ui_mode, UIMode::Tui)),
+            (!cfg!(windows) || matches!(opts.run_opts.ui_mode, UIMode::Tui)),
         );
         let CommandBase { repo_root, ui, .. } = base;
 
@@ -94,7 +92,6 @@ impl RunBuilder {
             repo_root,
             ui,
             version,
-            ui_mode,
             api_auth,
             analytics_sender: None,
             entrypoint_packages: None,
@@ -384,7 +381,6 @@ impl RunBuilder {
         Ok(Run {
             version: self.version,
             ui: self.ui,
-            ui_mode: self.ui_mode,
             start_at,
             processes: self.processes,
             run_telemetry,
@@ -439,7 +435,11 @@ impl RunBuilder {
 
         if !self.opts.run_opts.parallel {
             engine
-                .validate(pkg_dep_graph, self.opts.run_opts.concurrency, self.ui_mode)
+                .validate(
+                    pkg_dep_graph,
+                    self.opts.run_opts.concurrency,
+                    self.opts.run_opts.ui_mode,
+                )
                 .map_err(Error::EngineValidation)?;
         }
 

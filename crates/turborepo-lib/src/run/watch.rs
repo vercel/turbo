@@ -10,7 +10,7 @@ use tokio::{
 };
 use turborepo_repository::package_graph::PackageName;
 use turborepo_telemetry::events::command::CommandEventBuilder;
-use turborepo_ui::{tui, tui::AppSender};
+use turborepo_ui::sender::UISender;
 
 use crate::{
     cli::{Command, RunArgs},
@@ -52,8 +52,8 @@ pub struct WatchClient {
     base: CommandBase,
     telemetry: CommandEventBuilder,
     handler: SignalHandler,
-    ui_sender: Option<AppSender>,
-    ui_handle: Option<JoinHandle<Result<(), tui::Error>>>,
+    ui_sender: Option<UISender>,
+    ui_handle: Option<JoinHandle<Result<(), turborepo_ui::Error>>>,
 }
 
 struct PersistentRunHandle {
@@ -98,6 +98,8 @@ pub enum Error {
     SignalInterrupt,
     #[error("package change error")]
     PackageChange(#[from] tonic::Status),
+    #[error(transparent)]
+    UI(#[from] turborepo_ui::Error),
     #[error("could not connect to UI thread")]
     UISend(String),
 }
@@ -123,7 +125,7 @@ impl WatchClient {
 
         let watched_packages = run.get_relevant_packages();
 
-        let (sender, handle) = run.start_experimental_ui()?.unzip();
+        let (ui_sender, ui_handle) = run.start_ui()?.unzip();
 
         let connector = DaemonConnector {
             can_start_server: true,
@@ -139,8 +141,8 @@ impl WatchClient {
             handler,
             telemetry,
             persistent_tasks_handle: None,
-            ui_sender: sender,
-            ui_handle: handle,
+            ui_sender,
+            ui_handle,
         })
     }
 

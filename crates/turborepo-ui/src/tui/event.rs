@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 pub enum Event {
     StartTask {
         task: String,
@@ -40,20 +42,20 @@ pub enum Event {
     CopySelection,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub enum TaskResult {
     Success,
     Failure,
     CacheHit,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub enum CacheResult {
     Hit,
     Miss,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub enum OutputLogs {
     // Entire task output is persisted after run
     Full,

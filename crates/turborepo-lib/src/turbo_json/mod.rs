@@ -176,6 +176,8 @@ pub enum UIMode {
     Tui,
     /// Use the standard output stream
     Stream,
+    /// Use the web user interface (experimental)
+    Web,
 }
 
 impl Default for UIMode {

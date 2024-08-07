@@ -44,15 +44,15 @@ pub async fn run(base: CommandBase, telemetry: CommandEventBuilder) -> Result<i3
             .build(&handler, telemetry)
             .await?;
 
-        let (sender, handle) = run.start_experimental_ui()?.unzip();
+        let (sender, handle) = run.start_ui()?.unzip();
+
         let result = run.run(sender.clone(), false).await;
 
         if let Some(analytics_handle) = analytics_handle {
             analytics_handle.close_with_timeout().await;
         }
 
-        if let (Some(handle), Some(sender)) = (handle, sender) {
-            sender.stop();
+        if let Some(handle) = handle {
             if let Err(e) = handle.await.expect("render thread panicked") {
                 error!("error encountered rendering tui: {e}");
             }
