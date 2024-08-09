@@ -24,7 +24,7 @@ use chrono::{DateTime, Local};
 use rayon::iter::ParallelBridge;
 use tokio::{select, task::JoinHandle};
 use tracing::debug;
-use turbopath::AbsoluteSystemPathBuf;
+use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
 use turborepo_api_client::{APIAuth, APIClient};
 use turborepo_ci::Vendor;
 use turborepo_env::EnvironmentVariableMap;
@@ -105,6 +105,22 @@ impl Run {
         } else {
             cprintln!(self.ui, GREY, "• Remote caching disabled");
         }
+    }
+
+    pub fn opts(&self) -> &Opts {
+        &self.opts
+    }
+
+    pub fn repo_root(&self) -> &AbsoluteSystemPath {
+        &self.repo_root
+    }
+
+    pub fn scm(&self) -> &SCM {
+        &self.scm
+    }
+
+    pub fn root_turbo_json(&self) -> &TurboJson {
+        &self.root_turbo_json
     }
 
     pub fn create_run_for_persistent_tasks(&self) -> Self {

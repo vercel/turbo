@@ -563,7 +563,7 @@ pub enum Command {
         execution_args: Box<ExecutionArgs>,
     },
     Query {
-        query: String,
+        query: Option<String>,
     },
     Watch(Box<ExecutionArgs>),
     /// Unlink the current directory from your Vercel organization and disable
