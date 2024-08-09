@@ -103,7 +103,7 @@ pub struct CacheHitMetadata {
     pub time_saved: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CacheOpts {
     pub override_dir: Option<Utf8PathBuf>,
     pub remote_cache_read_only: bool,

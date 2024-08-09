@@ -26,6 +26,9 @@ Validate that we only run `my-app#build` with change not committed
   
 
 
+Do the same thing with the `query` command
+  $ ${TURBO} query "query { affectedPackages { name } }"
+
 Commit the change
   $ git add .
   $ git commit -m "add foo" --quiet

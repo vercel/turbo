@@ -36,7 +36,7 @@ pub enum Error {
     Config(#[from] crate::config::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Opts {
     pub cache_opts: CacheOpts,
     pub run_opts: RunOpts,
@@ -126,7 +126,7 @@ struct OptsInputs<'a> {
     api_auth: &'a Option<APIAuth>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RunCacheOpts {
     pub(crate) skip_reads: bool,
     pub(crate) skip_writes: bool,
@@ -143,7 +143,7 @@ impl<'a> From<OptsInputs<'a>> for RunCacheOpts {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RunOpts {
     pub(crate) tasks: Vec<String>,
     pub(crate) concurrency: u32,
@@ -181,7 +181,7 @@ impl RunOpts {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum GraphOpts {
     Stdout,
     File(String),
@@ -299,7 +299,7 @@ impl From<LogPrefix> for ResolvedLogPrefix {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ScopeOpts {
     pub pkg_inference_root: Option<AnchoredSystemPathBuf>,
     pub global_deps: Vec<String>,
