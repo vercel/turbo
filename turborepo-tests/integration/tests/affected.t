@@ -169,8 +169,8 @@ Do the same thing with the `ls` command
   
   3 packages
   
-    util packages/util
-    my-app apps/my-app
     another packages/another
+    my-app apps/my-app
+    util packages/util
 
 
