@@ -5771,6 +5771,8 @@ dependencies = [
  "sha2",
  "test-case",
  "thiserror",
+ "turborepo-ci",
+ "turborepo-ui",
 ]
 
 [[package]]

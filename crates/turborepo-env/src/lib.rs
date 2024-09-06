@@ -11,6 +11,8 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+pub mod ci;
+
 const DEFAULT_ENV_VARS: [&str; 1] = ["VERCEL_ANALYTICS_ID"];
 
 #[derive(Clone, Debug, Error)]
