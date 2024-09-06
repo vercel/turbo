@@ -6116,6 +6116,7 @@ dependencies = [
  "tempfile",
  "test-case",
  "thiserror",
+ "tokio",
  "tracing",
  "tui-term",
  "turbopath",

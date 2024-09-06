@@ -26,6 +26,7 @@ lazy_static = { workspace = true }
 nix = { version = "0.26.2", features = ["signal"] }
 ratatui = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tui-term = { workspace = true }
 turbopath = { workspace = true }
