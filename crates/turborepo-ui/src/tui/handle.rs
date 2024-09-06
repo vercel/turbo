@@ -1,9 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tokio::{
-    sync::{mpsc, oneshot},
-    time::Instant,
-};
+use tokio::sync::{mpsc, oneshot};
 
 use super::{
     event::{CacheResult, OutputLogs, PaneSize},
@@ -88,14 +85,8 @@ impl AppSender {
 impl AppReceiver {
     /// Receive an event, producing a tick event if no events are received by
     /// the deadline.
-    pub async fn recv(&mut self, deadline: Instant) -> Option<Event> {
-        match tokio::time::timeout_at(deadline, self.primary.recv()).await {
-            Ok(Some(event)) => Some(event),
-            // Receiving event timed out, produce tick
-            Err(_) => Some(Event::Tick),
-            // Channel was closed
-            Ok(None) => None,
-        }
+    pub async fn recv(&mut self) -> Option<Event> {
+        self.primary.recv().await
     }
 }
 
