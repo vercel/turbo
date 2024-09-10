@@ -1,3 +1,5 @@
+use tokio::sync::oneshot;
+
 pub enum Event {
     StartTask {
         task: String,
@@ -16,8 +18,8 @@ pub enum Event {
         status: String,
         result: CacheResult,
     },
-    PaneSizeQuery(std::sync::mpsc::SyncSender<PaneSize>),
-    Stop(std::sync::mpsc::SyncSender<()>),
+    PaneSizeQuery(oneshot::Sender<PaneSize>),
+    Stop(oneshot::Sender<()>),
     // Stop initiated by the TUI itself
     InternalStop,
     Tick,

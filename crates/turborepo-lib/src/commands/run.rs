@@ -52,7 +52,7 @@ pub async fn run(base: CommandBase, telemetry: CommandEventBuilder) -> Result<i3
         }
 
         if let (Some(handle), Some(sender)) = (handle, sender) {
-            sender.stop();
+            sender.stop().await;
             if let Err(e) = handle.await.expect("render thread panicked") {
                 error!("error encountered rendering tui: {e}");
             }
