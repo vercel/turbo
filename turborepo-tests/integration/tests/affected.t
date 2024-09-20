@@ -56,6 +56,19 @@ Do the same thing with the `query` command
     }
   }
 
+Also with `affectedFiles` in `turbo query`
+  $ ${TURBO} query "query { affectedFiles(base: \"main\", head: \"HEAD\") { items { path } } }"
+  {
+    "data": {
+      "affectedFiles": {
+        "items": [
+          {
+            "path": "apps/my-app/new.js"
+          }
+        ]
+      }
+    }
+  }
 
 Remove the new file
   $ rm apps/my-app/new.js
@@ -98,6 +111,20 @@ Do the same thing with the `query` command
         "items": [
           {
             "name": "my-app"
+          }
+        ]
+      }
+    }
+  }
+
+Also with `affectedFiles` in `turbo query`
+  $ ${TURBO} query "query { affectedFiles(base: \"main\", head: \"HEAD\") { items { path } } }"
+  {
+    "data": {
+      "affectedFiles": {
+        "items": [
+          {
+            "path": "apps/my-app/package.json"
           }
         ]
       }
