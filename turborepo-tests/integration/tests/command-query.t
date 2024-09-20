@@ -213,5 +213,31 @@ Run the query
   {
     "data": {
       "version": "2.1.3-canary.2"
+    },
+  }
+
+Query a file
+  $ ${TURBO} query "query { file(path: \"apps/my-app/package.json\") { path, contents } }"
+   WARNING  query command is experimental and may change in the future
+  {
+    "data": {
+      "file": {
+        "path": "apps/my-app/package.json",
+        "contents": "{\n  \"name\": \"my-app\",\n  \"scripts\": {\n    \"build\": \"echo building\",\n    \"maybefails\": \"exit 4\"\n  },\n  \"dependencies\": {\n    \"util\": \"*\"\n  }\n}\n"
+      }
+    }
+  }
+
+Get the file's package
+  $ ${TURBO} query "query { file(path: \"apps/my-app/package.json\") { path, package { ... on Package { name } } } }"
+   WARNING  query command is experimental and may change in the future
+  {
+    "data": {
+      "file": {
+        "path": "apps/my-app/package.json",
+        "package": {
+          "name": "my-app"
+        }
+      }
     }
   }
