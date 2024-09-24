@@ -64,7 +64,7 @@ Also with `affectedFiles` in `turbo query`
       "affectedFiles": {
         "items": [
           {
-            "path": "apps/my-app/new.js",
+            "path": "apps(\/|\\\\)my-app(\/|\\\\)new.js", (re)
             "affectedPackages": {
               "items": [
                 {
@@ -133,7 +133,7 @@ Also with `affectedFiles` in `turbo query`
       "affectedFiles": {
         "items": [
           {
-            "path": "apps/my-app/package.json",
+            "path": "apps(\/|\\\\)my-app(\/|\\\\)package.json", (re)
             "affectedPackages": {
               "items": [
                 {
@@ -332,7 +332,7 @@ Also with `affectedFiles` in `turbo query`
       "affectedFiles": {
         "items": [
           {
-            "path": "apps/my-app/package.json",
+            "path": "apps(\/|\\\\)my-app(\/|\\\\)package.json", (re)
             "affectedPackages": {
               "items": [
                 {

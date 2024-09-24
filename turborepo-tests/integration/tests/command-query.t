@@ -212,7 +212,7 @@ Run the query
    WARNING  query command is experimental and may change in the future
   {
     "data": {
-      "version": "2.1.3-canary.2"
+      "version": "[0-9]+\\.[0-9]+\\.[0-9]+(-canary\\.[0-9]+)?"
     },
   }
 
@@ -222,7 +222,7 @@ Query a file
   {
     "data": {
       "file": {
-        "path": "apps/my-app/package.json",
+        "path": "apps(\/|\\\\)my-app(\/|\\\\)package.json", (re)
         "contents": "{\n  \"name\": \"my-app\",\n  \"scripts\": {\n    \"build\": \"echo building\",\n    \"maybefails\": \"exit 4\"\n  },\n  \"dependencies\": {\n    \"util\": \"*\"\n  }\n}\n"
       }
     }
@@ -234,7 +234,7 @@ Get the file's package
   {
     "data": {
       "file": {
-        "path": "apps/my-app/package.json",
+        "path": "apps(\/|\\\\)my-app(\/|\\\\)package.json", (re)
         "package": {
           "name": "my-app"
         }

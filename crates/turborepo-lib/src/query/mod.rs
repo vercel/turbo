@@ -18,8 +18,7 @@ use turborepo_repository::package_graph::PackageName;
 use turborepo_scm::git::ChangedFiles;
 
 use crate::{
-    get_version,
-    global_deps_package_change_mapper,
+    get_version, global_deps_package_change_mapper,
     query::file::File,
     run::{builder::RunBuilder, Run},
     signal::SignalHandler,
@@ -45,6 +44,7 @@ pub enum Error {
     Path(#[from] turbopath::PathError),
     #[error(transparent)]
     UI(#[from] turborepo_ui::Error),
+    #[error(transparent)]
     ChangeMapper(#[from] global_deps_package_change_mapper::Error),
     #[error(transparent)]
     Scm(#[from] turborepo_scm::Error),
