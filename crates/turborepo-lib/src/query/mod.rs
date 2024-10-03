@@ -2,7 +2,7 @@ mod file;
 mod package;
 mod server;
 
-use std::{io, sync::Arc};
+use std::{borrow::Cow, io, sync::Arc};
 
 use async_graphql::{http::GraphiQLSource, *};
 use axum::{response, response::IntoResponse};
@@ -15,9 +15,10 @@ use tokio::select;
 use turbo_trace::TraceError;
 use turbopath::AbsoluteSystemPathBuf;
 use turborepo_repository::package_graph::PackageName;
+use turborepo_scm::git::ChangedFiles;
 
 use crate::{
-    get_version,
+    get_version, global_deps_package_change_mapper,
     query::file::File,
     run::{builder::RunBuilder, Run},
     signal::SignalHandler,
@@ -43,6 +44,10 @@ pub enum Error {
     Path(#[from] turbopath::PathError),
     #[error(transparent)]
     UI(#[from] turborepo_ui::Error),
+    #[error(transparent)]
+    ChangeMapper(#[from] global_deps_package_change_mapper::Error),
+    #[error(transparent)]
+    Scm(#[from] turborepo_scm::Error),
 }
 
 pub struct RepositoryQuery {
@@ -55,10 +60,21 @@ impl RepositoryQuery {
     }
 }
 
-#[derive(Debug, SimpleObject)]
+#[derive(Debug, SimpleObject, Default)]
+#[graphql(concrete(name = "Files", params(File)))]
+#[graphql(concrete(name = "Packages", params(Package)))]
 pub struct Array<T: OutputType> {
     items: Vec<T>,
     length: usize,
+}
+
+impl<T: OutputType> Array<T> {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            length: 0,
+        }
+    }
 }
 
 impl<T: OutputType> FromIterator<T> for Array<T> {
@@ -68,6 +84,13 @@ impl<T: OutputType> FromIterator<T> for Array<T> {
         Self { items, length }
     }
 }
+
+impl<T: OutputType> TypeName for Array<T> {
+    fn type_name() -> Cow<'static, str> {
+        Cow::Owned(format!("Array<{}>", T::type_name()))
+    }
+}
+
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 enum PackageFields {
     Name,
@@ -333,6 +356,53 @@ impl RepositoryQuery {
         }
 
         Ok(File::new(self.run.clone(), abs_path))
+    }
+
+    /// Get the files that have changed between the `base` and `head` commits.
+    ///
+    /// # Arguments
+    ///
+    /// * `base`: Defaults to `main` or `master`
+    /// * `head`: Defaults to `HEAD`
+    /// * `include_uncommitted`: Defaults to `true` if `head` is not provided
+    /// * `allow_unknown_objects`: Defaults to `false`
+    /// * `merge_base`: Defaults to `true`
+    ///
+    /// returns: Result<Array<File>, Error>
+    async fn affected_files(
+        &self,
+        base: Option<String>,
+        head: Option<String>,
+        include_uncommitted: Option<bool>,
+        allow_unknown_objects: Option<bool>,
+        merge_base: Option<bool>,
+    ) -> Result<Array<File>, Error> {
+        let base = base.as_deref();
+        let head = head.as_deref();
+        let include_uncommitted = include_uncommitted.unwrap_or_else(|| head.is_none());
+        let merge_base = merge_base.unwrap_or(true);
+        let allow_unknown_objects = allow_unknown_objects.unwrap_or(false);
+
+        let repo_root = self.run.repo_root();
+        let change_result = self.run.scm().changed_files(
+            repo_root,
+            base,
+            head,
+            include_uncommitted,
+            allow_unknown_objects,
+            merge_base,
+        )?;
+
+        let files = match change_result {
+            // Shouldn't happen since we set `allow_unknown_objects` to false
+            ChangedFiles::All => unreachable!(),
+            ChangedFiles::Some(files) => files,
+        };
+
+        Ok(files
+            .into_iter()
+            .map(|file| File::new(self.run.clone(), self.run.repo_root().resolve(&file)))
+            .collect())
     }
 
     /// Gets a list of packages that match the given filter
