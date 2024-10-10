@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, Instrument, Span};
 use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf, AnchoredSystemPath};
 use turborepo_ci::{Vendor, VendorBehavior};
-use turborepo_env::EnvironmentVariableMap;
+use turborepo_env::{ci::CIEnv, EnvironmentVariableMap};
 use turborepo_repository::{
     package_graph::{PackageGraph, PackageName, ROOT_PKG_NAME},
     package_manager::PackageManager,
@@ -293,6 +293,7 @@ impl<'a> Visitor<'a> {
                     } else {
                         TaskOutput::Direct(self.output_client(&info, vendor_behavior))
                     };
+
                     let tracker = self.run_tracker.track_task(info.clone().into_owned());
                     let spaces_client = self.run_tracker.spaces_task_client();
                     let parent_span = Span::current();
@@ -693,6 +694,7 @@ impl<'a> ExecContextFactory<'a> {
             errors: self.errors.clone(),
             takes_input,
             task_access,
+            ci_env: CIEnv::new(),
         }
     }
 
@@ -729,6 +731,7 @@ struct ExecContext {
     errors: Arc<Mutex<Vec<TaskError>>>,
     takes_input: bool,
     task_access: TaskAccess,
+    ci_env: CIEnv,
 }
 
 enum ExecOutcome {
@@ -880,6 +883,13 @@ impl ExecContext {
                 task.start(output_logs);
             }
         }
+
+        // validate the provided environment variables against those in CI
+        self.ci_env.validate(
+            &self.execution_env,
+            self.color_config,
+            self.task_id_for_display.as_str(),
+        );
 
         match self
             .task_cache
